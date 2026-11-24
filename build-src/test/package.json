@@ -1,0 +1,13 @@
+{
+  "name": "test",
+  "version": "1.0.0",
+  "description": "```bash # 环境：node 18+，需要 jsdom cd build-src/test npm i jsdom --silent   # 若目录不支持安装，可在 /tmp 建工作副本后把本目录复制过去 bash run-all.sh ```",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

@@ -1,0 +1,186 @@
+/* ================= 补充组件 ================= */
+.warning{
+  margin:10px 0 0;padding:11px 14px;border-radius:13px;background:#fff4e5;color:#a15c00;
+  font-size:12px;line-height:1.6;border:1px solid #ffe2b8;
+}
+.textbtn{display:inline-flex;align-items:center;gap:4px;color:var(--blue);font-size:12.5px;font-weight:650;padding:8px 0}
+.textbtn:active{opacity:.7}
+
+.cycle-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0}
+.cycle-opt{padding:11px 3px;border-radius:11px;background:#f5f8fc;border:1px solid #e8eef7;font-size:12.5px;color:#4a5d78;font-weight:550}
+.cycle-opt.on{background:linear-gradient(135deg,#3b7bfa,#1d55cf);color:#fff;border-color:#2a6bee;font-weight:650;box-shadow:0 5px 14px rgba(37,103,232,.22)}
+.cycle-opt:active{transform:scale(.97)}
+
+/* 工资周期小按钮（日历横幅） */
+.settle-mini{
+  position:relative;z-index:1;margin-left:8px;display:inline-flex;align-items:center;gap:4px;
+  height:22px;padding:0 8px;border-radius:7px;font-size:10px;font-weight:600;
+  background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.35);white-space:nowrap;
+}
+.settle-mini.on{background:#fff;color:#1d55cf;border-color:#fff}
+
+/* ================= 壁纸层 =================
+   用独立的固定图层画壁纸，不再用 body 的 background-attachment:fixed
+   （安卓 WebView 对 fixed 背景支持很差，滚动时会丢图，这就是「看不到壁纸」的原因） */
+.wallpaper{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:var(--bg);transition:background .25s}
+.wall-img{
+  position:absolute;inset:-6%;background-position:center;background-repeat:no-repeat;background-size:cover;
+  opacity:0;transition:opacity .35s ease, filter .2s ease;will-change:opacity,filter;
+}
+body.has-bg-image .wall-img{opacity:1}
+.wall-scrim{position:absolute;inset:0;background:#0a1422;opacity:0;transition:opacity .2s}
+.app{position:relative;z-index:1}
+
+/* 壁纸模式下：卡片 / 日历格 / 各种面板跟着「卡片透明度」一起变透 */
+body.bg-custom .card,
+body.bg-custom .day,
+body.bg-custom .cat,
+body.bg-custom .stat,
+body.bg-custom .cycle-btn,
+body.bg-custom .iconbtn,
+body.bg-custom .preset-chip,
+body.bg-custom .wd,
+body.bg-custom .bg-preview,
+body.bg-custom .worker-switch,
+body.bg-custom .worker-switch button.on,
+body.bg-custom .tabs button.on{background:rgba(255,255,255,var(--surf-a,1))}
+body.bg-custom .day.has{background:rgba(246,250,255,var(--surf-a,1))}
+body.bg-custom .day.is-today{background:rgba(233,242,255,var(--surf-a,1))}
+body.bg-custom .worker-switch{background:rgba(233,238,246,var(--surf-a2,1))}
+body.bg-custom .topbar{background:rgba(247,249,252,var(--surf-a2,1))}
+body.bg-custom .nav{background:rgba(255,255,255,var(--surf-a2,1))}
+body.bg-custom .summary{box-shadow:0 12px 26px rgba(37,103,232,.32)}
+body.bg-custom dialog.sheet{background:rgba(255,255,255,.97)}
+body.bg-glass .card,
+body.bg-glass .day,
+body.bg-glass .worker-switch,
+body.bg-glass .topbar{backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+
+/* 壁纸设置面板 */
+.bg-preview-tall{position:relative;height:132px;border-radius:14px;overflow:hidden;border:1px solid #e6edf6;margin:12px 0 4px;background:#f5f7fb}
+.bg-preview-tall .bp-wall{position:absolute;inset:0;background-position:center;background-size:cover}
+.bg-preview-tall .bp-scrim{position:absolute;inset:0;background:#0a1422;opacity:0}
+.bg-preview-tall .bp-card{position:absolute;left:12px;right:12px;top:34px;height:64px;border-radius:13px;background:#fff;box-shadow:0 6px 18px rgba(20,40,70,.14);padding:10px 12px}
+.bg-preview-tall .bp-card b{display:block;font-size:13px;color:#23344e}
+.bg-preview-tall .bp-card span{font-size:11px;color:#8794a8}
+.bg-preview-tall .bp-tag{position:absolute;left:8px;top:8px;font-size:9.5px;color:#fff;background:rgba(10,20,34,.45);padding:2px 7px;border-radius:6px}
+.bg-seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#eef2f8;border-radius:11px;padding:3px;margin-top:6px}
+.bg-seg button{height:32px;border-radius:9px;font-size:12px;font-weight:600;color:#6f7e94}
+.bg-seg button.on{background:#fff;color:var(--blue);box-shadow:0 2px 8px rgba(35,66,106,.1)}
+
+/* 卡片内标题小图标 */
+.card-head h2 .ico{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:8px;background:var(--pale);color:var(--blue);margin-right:2px}
+.card-head h2 .ico svg{width:14px;height:14px}
+.set-card .sc-head .ico svg{width:17px;height:17px}
+.set-card .sc-head .ico{font-size:15px}
+
+/* 弹窗里的复选框行 */
+.mini-check{display:flex;align-items:center;gap:7px;font-size:12px;color:#5f7189;padding:6px 0}
+.mini-check input{width:17px;height:17px;accent-color:var(--blue)}
+
+/* ================= 网格/输入框防溢出（重要） ================= */
+.field{min-width:0}
+.grid2,.grid3,.week-picker,.item-row,.rate-row{min-width:0}
+.grid2 > *,.grid3 > *{min-width:0}
+.input-unit{min-width:0;width:100%}
+.input-unit input{width:100%;min-width:0}
+.grid2 .field,.grid3 .field{min-width:0}
+.field > .input-unit{margin-top:0}
+.week-picker .wd{min-width:0;overflow:hidden}
+.week-picker .wd small{font-size:8px;line-height:1.1}
+.card,.set-card,.sc-body{min-width:0}
+.brand h1{max-width:60vw;overflow:hidden;text-overflow:ellipsis}
+.grid2,.grid3{margin-top:12px}
+.field + .help{margin-top:6px}
+
+/* 键盘打开时，弹窗内容整体上移，避免挡住底部按钮 */
+
+body.kp-open dialog.sheet .sheet-foot{padding-bottom:10px}
+body.kp-open dialog.sheet .sheet-body{padding-bottom:8px}
+
+/* 工资周期滚轮 */
+.wheel-wrap{position:relative;height:264px;margin:14px 0 6px;border-radius:15px;overflow:hidden;background:#f7fafd;border:1px solid #e8eef7}
+.wheel{height:100%;overflow-y:auto;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.wheel::-webkit-scrollbar{display:none}
+.wheel-pad{height:110px;flex-shrink:0}
+.wheel-item{display:flex;align-items:center;justify-content:center;width:100%;height:44px;scroll-snap-align:center;font-size:14px;color:#93a0b3;background:none;border:0;font-variant-numeric:tabular-nums;transition:color .15s,font-size .15s}
+.wheel-item.on{color:var(--blue);font-weight:700;font-size:16.5px}
+.wheel-mid{position:absolute;left:14px;right:14px;top:110px;height:44px;border-top:1px solid #d6e4fb;border-bottom:1px solid #d6e4fb;background:rgba(37,103,232,.045);border-radius:8px;pointer-events:none;z-index:1}
+
+/* ================= 多模式键盘 ================= */
+.keypad{gap:5px}
+.kp-head{display:flex;align-items:center;gap:6px;padding:1px 2px 3px}
+.kp-modes{display:flex;gap:4px;flex:1;min-width:0}
+.kp-modes button{height:28px;padding:0 10px;border-radius:8px;font-size:11.5px;font-weight:600;color:#6f7e94;background:#fff;border:1px solid #e2e9f3;flex-shrink:0}
+.kp-modes button.on{background:var(--blue);color:#fff;border-color:var(--blue);box-shadow:0 3px 8px rgba(37,103,232,.22)}
+.kp-modes button:disabled{opacity:.32}
+.kp-sys{height:28px;padding:0 9px;border-radius:8px;font-size:11px;color:#5f7189;background:#f7f9fc;border:1px solid #e7eef7;flex-shrink:0;white-space:nowrap}
+.kp-hide{width:30px;height:28px;border-radius:8px;font-size:17px;line-height:1;color:#5f7189;background:#f7f9fc;border:1px solid #e7eef7;display:grid;place-items:center;flex-shrink:0}
+.kp-cands{display:flex;gap:6px;overflow-x:auto;padding:2px;min-height:40px;align-items:center;scrollbar-width:none;background:rgba(255,255,255,.55);border-radius:9px}
+.kp-cands::-webkit-scrollbar{display:none}
+.cand{flex-shrink:0;min-width:36px;height:34px;padding:0 8px;border-radius:8px;background:#fff;border:1px solid #e4ebf5;font-size:15.5px;color:#2c3f5c;box-shadow:0 1px 2px rgba(30,50,80,.06)}
+.cand:active{background:#e6edf9;transform:scale(.97)}
+.cand-empty{font-size:11px;color:#a8b4c4;padding-left:8px}
+.kp-alpha{display:flex;flex-direction:column;gap:6px;padding-top:2px}
+.alpha-row{display:flex;gap:5px;justify-content:center}
+.akey{flex:1;max-width:42px;height:42px;border-radius:8px;background:#fff;font-size:16px;font-weight:550;color:#2c3f5c;box-shadow:0 1px 2px rgba(30,50,80,.08)}
+.akey-fn{max-width:60px;font-size:12px;font-weight:500;color:#5f7189;background:#f7f9fc}
+.akey:active{background:#e6edf9;transform:scale(.96)}
+.kp-t9{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding-top:2px}
+.tkey{height:45px;border-radius:9px;background:#fff;display:flex;align-items:center;justify-content:center;gap:4px;box-shadow:0 1px 2px rgba(30,50,80,.08)}
+.tkey b{font-size:17px;color:#2c3f5c}
+.tkey small{font-size:9px;color:#a8b4c4;letter-spacing:.2px}
+.tkey.fn{font-size:12px;color:#5f7189;background:#f7f9fc}
+.tkey:active{background:#e6edf9;transform:scale(.97)}
+body.kp-open dialog.sheet .sheet-inner{padding-bottom:var(--kp-pad,336px)}
+
+/* ================= 键盘：候选栏 / 分页 / 底栏 / 气泡 ================= */
+.kp-info{display:flex;align-items:center;gap:7px;padding:1px 5px 2px;min-height:22px}
+.kp-info .kp-label{font-size:11px;color:#6f7e94;flex-shrink:0;max-width:34%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kp-info .kp-py{flex:1;min-width:0;font-size:13px;font-weight:600;color:#2a6bee;letter-spacing:.4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kp-info .kp-val{font-size:15px;font-weight:700;color:#2c3f5c;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+.kp-info .kp-unit{font-size:10.5px;color:#93a0b3;flex-shrink:0}
+.kp-cbar{display:flex;align-items:center;gap:4px}
+.kp-page{
+  width:26px;height:34px;flex-shrink:0;border-radius:8px;background:#fff;border:1px solid #e4ebf5;
+  color:#4a5d78;font-size:17px;line-height:1;display:grid;place-items:center;
+}
+.kp-page:disabled{opacity:.3}
+.kp-page:active{background:#e6edf9}
+.kp-cands{flex:1;min-width:0}
+.cand.first{background:#e8f0ff;border-color:#b9d3ff;color:#1d55cf;font-weight:650}
+.kp-foot{display:flex;gap:5px;padding-top:1px}
+.fkey{flex:1;height:38px;border-radius:9px;background:#fff;color:#2c3f5c;font-size:13px;font-weight:600;box-shadow:0 1px 2px rgba(30,50,80,.08)}
+.fkey.wide{flex:2.2}
+.fkey.go{background:linear-gradient(135deg,#3b7bfa,#1d55cf);color:#fff;box-shadow:0 4px 12px rgba(37,103,232,.28)}
+.fkey:active{filter:brightness(.96);transform:scale(.99)}
+.akey-shift{max-width:48px}
+.akey-shift.on{background:#dbe7ff;color:#1d55cf}
+.alpha-row-2{padding:0 10px}
+#keypad[data-kp-mode="num"] .kp-foot{display:none}
+#keypad[data-kp-mode="num"] .kp-cbar{display:none}
+.kp-bubble{
+  position:fixed;z-index:130;transform:translate(-50%,-100%) scale(.9);transform-origin:50% 100%;
+  min-width:34px;padding:4px 9px;border-radius:10px;background:#fff;color:#1d3a63;font-size:19px;font-weight:600;
+  box-shadow:0 8px 22px rgba(20,40,70,.22);border:1px solid #e2eaf6;
+  opacity:0;pointer-events:none;transition:opacity .09s,transform .09s;
+}
+.kp-bubble.on{opacity:1;transform:translate(-50%,-100%) scale(1)}
+
+/* 壁纸面板：预览 / 按钮 / 滑块 / 配色条 */
+.bg-actions{display:flex;gap:8px;margin-top:10px}
+.bg-actions .btn{flex:1;height:40px}
+.bg-slider-row{margin-top:8px}
+.bg-strip{display:flex;gap:8px;overflow-x:auto;padding:2px 0 4px;scrollbar-width:none}
+.bg-strip::-webkit-scrollbar{display:none}
+.bg-strip .bg-opt{flex:0 0 58px;width:58px;height:76px;aspect-ratio:auto}
+.bg-strip .bg-opt .nm{font-size:8.5px;padding:8px 2px 3px}
+.bg-preview-tall{height:124px}
+body.bg-custom .monthbar{background:rgba(255,255,255,var(--surf-a2,1));border-radius:18px;padding:10px 4px 11px;margin-bottom:4px;box-shadow:var(--shadow-sm)}
+body.bg-custom .keypad{background:rgba(238,241,246,.97)}
+
+/* 文字多的页面（明细/设置）用更实的底，保证看得清 */
+body.bg-custom #main .card:not(.calendar-card){background:rgba(255,255,255,var(--surf-b,1))}
+body.bg-custom .page-head{background:rgba(255,255,255,var(--surf-a2,1));border-radius:16px;padding:12px 13px 11px;margin:0 0 4px;box-shadow:var(--shadow-sm)}
+body.bg-custom .settle-card .sc-rows,
+body.bg-custom .settle-card .sc-total{border-color:rgba(210,224,240,.85)}

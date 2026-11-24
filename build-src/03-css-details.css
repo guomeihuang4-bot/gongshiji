@@ -1,0 +1,102 @@
+/* ================= 明细页 ================= */
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;padding:14px 2px 12px}
+.page-head .ph-main{min-width:0}
+.page-head h2{font-size:20px;font-weight:700;letter-spacing:.3px;display:flex;align-items:center;gap:8px}
+.page-head .ph-sub{font-size:11.5px;color:var(--muted-2);margin-top:2px}
+.page-head .ph-act{display:flex;gap:7px;flex-shrink:0}
+
+.settle-card{padding:18px 18px 16px}
+.settle-card .sc-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+.settle-card .sc-title{font-size:13px;font-weight:650;color:var(--ink-2);display:flex;align-items:center;gap:7px}
+.settle-card .sc-title .ico{width:26px;height:26px;border-radius:9px;display:grid;place-items:center;font-size:13px;background:var(--pale);color:var(--blue)}
+.sc-badge{font-size:10px;padding:2px 7px;border-radius:7px;background:var(--green-pale);color:var(--green);font-weight:650}
+.sc-badge.warn{background:var(--orange-pale);color:var(--orange)}
+
+.money-hero{display:flex;align-items:baseline;gap:8px;margin:4px 0 12px}
+.money-hero .amt{font-size:34px;font-weight:700;letter-spacing:.2px;color:var(--blue);font-variant-numeric:tabular-nums;line-height:1.15}
+.money-hero .amt.neg{color:var(--red)}
+.money-hero .unit{font-size:12px;color:var(--muted-2)}
+.money-hero .delta{margin-left:auto;font-size:11px;color:var(--muted);text-align:right;line-height:1.4}
+
+.line-items{border-top:1px solid var(--line);margin-top:4px}
+.li-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px dashed #eff3f9;font-size:13px;color:#4a5d78}
+.li-row:last-child{border-bottom:0}
+.li-row .li-name{display:flex;align-items:center;gap:6px;min-width:0}
+.li-row .li-name .em{font-style:normal;font-size:9px;padding:1px 5px;border-radius:5px;background:var(--orange-pale);color:var(--orange);white-space:nowrap}
+.li-row .li-val{white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink-2)}
+.li-row .li-val.neg{color:var(--red)}
+.li-row .li-val.pos{color:var(--green)}
+.li-row.total{font-size:14.5px;font-weight:650;color:var(--ink);border-top:1px solid var(--line);border-bottom:0;margin-top:2px;padding-top:12px}
+.li-row.total .li-val{font-size:22px;color:var(--blue);font-weight:700}
+.li-sub{font-size:10.5px;color:var(--muted-2);padding:0 0 8px;line-height:1.6}
+
+/* 分类卡片（工地/统计） */
+.cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}
+.cat{display:flex;flex-direction:column;gap:2px;padding:12px 13px;border-radius:14px;background:#f8fafd;border:1px solid #eef3f9;text-align:left}
+.cat .cat-name{font-size:12px;color:#6f7e94;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.cat .cat-val{font-size:19px;font-weight:700;color:var(--blue);font-variant-numeric:tabular-nums;letter-spacing:-.2px}
+.cat .cat-sub{font-size:10.5px;color:var(--muted-2)}
+.cat.green .cat-val{color:var(--green)}
+.cat.orange .cat-val{color:var(--orange)}
+.cat.purple .cat-val{color:var(--purple)}
+.cat.full{grid-column:1/-1}
+
+/* 出勤统计 */
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{padding:11px 8px;text-align:center;border-radius:13px;background:#f8fafd;border:1px solid #eef3f9}
+.stat b{display:block;font-size:18px;font-weight:700;color:var(--ink-2);font-variant-numeric:tabular-nums;line-height:1.3}
+.stat span{font-size:10.5px;color:var(--muted-2)}
+.stat.blue b{color:var(--blue)}
+.stat.orange b{color:var(--orange)}
+.stat.purple b{color:var(--purple)}
+.stat.green b{color:var(--green)}
+.shift-pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
+.shift-pills .pill{font-size:11px;padding:5px 9px}
+.pill.sh-white::before{background:#5b8def}
+.pill.sh-morning::before{background:#f5a623}
+.pill.sh-noon::before{background:#9b6bd6}
+.pill.sh-evening::before{background:#3f6fd8}
+.pill.sh-night::before{background:#4a4a8a}
+.pill.sh-rest::before{background:#b9c3d1}
+.pill.sh-leave::before{background:#e0533d}
+.pill.sh-sick::before{background:#e8b93a}
+.pill.sh-holiday::before{background:#e0533d}
+
+/* 记录列表 */
+.rec-list{display:block}
+.rec-row{
+  display:flex;align-items:center;gap:11px;width:100%;text-align:left;padding:12px 2px;
+  border-bottom:1px solid var(--line);background:transparent;transition:background .12s;
+}
+.rec-row:last-child{border-bottom:0}
+.rec-row:active{background:#f7faff}
+.datebox{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:46px;flex-shrink:0;gap:1px}
+.datebox b{font-size:18px;line-height:1.15;color:#33465f;font-variant-numeric:tabular-nums}
+.datebox small{font-size:9.5px;color:var(--muted-2);white-space:nowrap}
+.rec-info{display:flex;flex:1;flex-direction:column;min-width:0;gap:2px;align-items:flex-start}
+.rec-info .t{font-size:13px;color:#33465f;display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-width:0}
+.rec-info .t .txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.rec-info .note{font-size:11px;color:var(--muted-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.rec-amt{font-size:14.5px;font-weight:650;white-space:nowrap;color:var(--blue);flex-shrink:0;font-variant-numeric:tabular-nums}
+.rec-amt.neg{color:var(--red)}
+.rec-amt.zero{color:#c2ccdb}
+.rec-row.empty-row .rec-info{color:#a8b4c4}
+.badge{font-size:9px;padding:1px 5px;border-radius:5px;font-weight:600;white-space:nowrap}
+.badge.holiday{background:var(--red-pale);color:var(--red)}
+.badge.weekend{background:#eaf1ff;color:#5b8def}
+.badge.rest{background:#f0f4f9;color:#9aa6b8}
+.badge.piece{background:var(--purple-pale);color:var(--purple)}
+.badge.site{background:var(--green-pale);color:var(--green)}
+.badge.borrow{background:var(--orange-pale);color:var(--orange)}
+
+/* 年度 */
+.year-row{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
+.year-row .y{font-size:11px;color:var(--muted-2)}
+.year-row .v{font-size:26px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:.2px}
+.year-bars{display:flex;align-items:flex-end;gap:3px;height:44px;margin-top:12px}
+.year-bars .bar{flex:1;background:#e8f0ff;border-radius:4px 4px 2px 2px;min-height:3px;position:relative}
+.year-bars .bar.on{background:linear-gradient(180deg,#6ea3ff,#2a6bee)}
+.year-bars .bar.cur{background:linear-gradient(180deg,#3b7bfa,#1b4fc0)}
+.year-labels{display:flex;gap:3px;margin-top:4px}
+.year-labels span{flex:1;text-align:center;font-size:8.5px;color:var(--muted-2);letter-spacing:-.3px}
+.year-labels span.cur{color:var(--blue);font-weight:700}

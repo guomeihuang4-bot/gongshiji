@@ -1,0 +1,18 @@
+import { JSDOM, VirtualConsole } from 'jsdom';
+import fs from 'fs';
+const html = fs.readFileSync('../../工时记.html','utf8');
+const vc = new VirtualConsole();
+const errors = [];
+vc.on('jsdomError', e => errors.push('jsdomError: '+e.message));
+vc.on('error', (...a) => errors.push('console.error: '+a.join(' ')));
+vc.on('warn', (...a) => errors.push('warn: '+a.join(' ')));
+const dom = new JSDOM(html, { runScripts:'dangerously', pretendToBeVisual:true, url:'file:///sdcard/test/index.html', virtualConsole:vc });
+const { window } = dom;
+await new Promise(r=>setTimeout(r,300));
+console.log('errors:', errors.length ? errors.slice(0,10) : 'none');
+console.log('title:', window.document.title);
+console.log('main 长度:', window.document.getElementById('main').innerHTML.length);
+console.log('月份标题:', window.document.querySelector('.month-title strong')?.textContent);
+console.log('汇总:', window.document.querySelector('.summary .s-money')?.textContent);
+console.log('格子数:', window.document.querySelectorAll('.day').length);
+console.log('nav:', [...window.document.querySelectorAll('.nav button')].map(b=>b.textContent.trim()).join(','));
