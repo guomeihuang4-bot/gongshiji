@@ -9,3 +9,7 @@ gongshiji-app/local.properties
 .DS_Store
 Thumbs.db
 *.log
+
+# 签名密钥不入库
+*.jks
+*.keystore

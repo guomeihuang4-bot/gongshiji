@@ -72,7 +72,18 @@ cd gongshiji-app
 bash build.sh assembleRelease  # 产物在 app/build/outputs/apk/release/
 ```
 
-`gongshiji-app/build.sh` 里默认 `ANDROID_HOME=/opt/android-sdk`，换成你本机的 SDK 路径（或先 `export ANDROID_HOME=...`），再建一个 `local.properties` 写 `sdk.dir=/你的/sdk/路径`。签名用的是仓库里的 `gongshiji-release.jks`，密码写在 `app/build.gradle`，只适合自测和自用分发。
+`gongshiji-app/build.sh` 里默认 `ANDROID_HOME=/opt/android-sdk`，换成你本机的 SDK 路径（或先 `export ANDROID_HOME=...`），再建一个 `local.properties` 写 `sdk.dir=/你的/sdk/路径`。
+
+**仓库里不含签名密钥**。要打 release 包，自己生成一个 jks，并在 `local.properties` 里配（该文件已被 gitignore）：
+
+```properties
+gongshi.storeFile=../你的签名.jks
+gongshi.storePassword=***
+gongshi.keyAlias=***
+gongshi.keyPassword=***
+```
+
+只想装上自测的话，直接 `bash build.sh assembleDebug` 用 debug 签名即可，不用配密钥。
 
 跑测试（可选）：
 
