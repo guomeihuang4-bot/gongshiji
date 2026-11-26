@@ -28,6 +28,8 @@
 
 > `build-src/` 能**逐字节**重新生成 `工时记.html` 和 `keypad.js`，单文件版由脚本把两者合并。APK 里内嵌的就是单文件版。
 
+Releases 里也挂了同样两份成品，文件名换成了英文（GitHub 会把中文资源名吃掉）：[`gongshiji-1.0.apk`](https://github.com/guomeihuang4-bot/gongshiji/releases/download/v1.0/gongshiji-1.0.apk) 和 [`gongshiji-1.0-single.html`](https://github.com/guomeihuang4-bot/gongshiji/releases/download/v1.0/gongshiji-1.0-single.html)。
+
 ## 怎么用
 
 三种方式，挑一种就行。
