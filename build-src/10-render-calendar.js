@@ -104,8 +104,9 @@ function dayMiniText(kind, rec, k) {
 /** 汇总横幅右侧统计（按工种） */
 function summaryStats(kind, st) {
   if (kind === 'regular') {
+    const leaveTip = st.leaveApplied > 0 ? `（调休抵 ${st.leaveApplied}h）` : '';
     return `<div class="row"><b>${st.workDays}</b> 天上班</div>
-      <div class="row"><b>${st.otHours % 1 ? st.otHours.toFixed(1) : st.otHours}</b> 小时加班</div>
+      <div class="row"><b>${st.otHours % 1 ? st.otHours.toFixed(1) : st.otHours}</b> 小时加班${leaveTip}</div>
       <div class="row">时薪 <b>${money(st.hourlyRate)}</b></div>`;
   }
   if (kind === 'temp') {
@@ -126,7 +127,9 @@ function summaryStats(kind, st) {
 function summaryNote(kind, st) {
   if (!st.hasAny) return '这个周期还没有记工，点下面开始记录';
   if (kind === 'regular') {
-    return `底薪 ${money(st.base)} · 加班 ${money(st.otPay)} · 扣 ${money(st.dedTotal + st.baseDeduct)}`;
+    let line = `底薪 ${money(st.base)} · 加班 ${money(st.otPay)} · 扣 ${money(st.dedTotal + st.baseDeduct)}`;
+    if (st.leaveApplied > 0) line += ` · 调休抵 ${st.leaveApplied}h`;
+    return line;
   }
   if (kind === 'temp') return `工时 ${st.hours} 小时 · 扣 ${money(st.dedTotal)}`;
   if (kind === 'piece') return `计件 ${st.qty} ${state.data.piece.settings.unit || '件'} · 扣 ${money(st.dedTotal)}`;
@@ -199,7 +202,7 @@ function calendarPage() {
     .map((d, i) => `<span class="${i >= 5 ? 'we' : ''}">${d}</span>`).join('');
 
   const legend = legendHTML(kind);
-  const modeNote = state.settleNow ? '<span class="tag">结算到今天</span>' : '';
+  const modeNote = state.settleNow ? '<span class="tag">已按记录结算</span>' : '';
 
   return `
   <div class="monthbar">
@@ -215,7 +218,7 @@ function calendarPage() {
   <div class="summary">
     <div class="s-main">
       <div class="s-label">本月工资 ${modeNote}
-        <button class="settle-mini ${state.settleNow ? 'on' : ''}" type="button" data-action="settle-now">${state.settleNow ? '恢复整月' : '算到今天'}</button>
+        <button class="settle-mini ${state.settleNow ? 'on' : ''}" type="button" data-action="settle-now">${state.settleNow ? '恢复整月' : '结算本月'}</button>
       </div>
       <div class="s-money ${st.net < 0 ? 'neg' : ''}">${money(st.net)}</div>
       <div class="s-note">${summaryNote(kind, st)}</div>

@@ -69,7 +69,7 @@ eq('跨年周期', cyc2.dates[0], '2026-01-26');
 S().cycleStartDay = 1; api.render();
 eq('自然月天数 11 月', api.cycleRange(2026,10).dates.length, 30);
 
-group('现在结算（底薪按已过工作日折算）');
+group('结算本月（底薪按已记录天数折算）');
 S().data.regular.settings.baseSalary = 8000;
 S().data.regular.settings.daysPerMonth = 21.75;
 S().data.regular.records['2026-11-18'] = { shift:'白班', otHours:0, regularHours:null, note:'' };

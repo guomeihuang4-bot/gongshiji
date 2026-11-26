@@ -80,6 +80,61 @@ function currentCycle() {
 /* ---------------- 单日工资 ---------------- */
 function fullDayHours() { return state.data.regular.settings.hoursPerDay; }
 
+/** 加班倍率档位：wd=平时 / we=周末 / hd=节假日 */
+const OT_KEYS = ['wd', 'we', 'hd'];
+const OT_LABEL = { wd: '平时', we: '周末', hd: '节假日' };
+const OT_MULKEY = { wd: 'mulWeekday', we: 'mulWeekend', hd: 'mulHoliday' };
+
+/** 某档在正式工设置里的倍率 */
+function otMul(key, s) {
+  s = s || state.data.regular.settings;
+  return num(s[OT_MULKEY[key]], 1, 0, 10);
+}
+
+/** 某天的法定档位（由日类型决定） */
+function legalOtKey(k) {
+  const t = dateType(k, 'regular');
+  return t === 'holiday' ? 'hd' : t === 'weekend' ? 'we' : 'wd';
+}
+
+/** 把一条记录的加班拆成分段 [{key,h,mul}]；未拆分时整天按法定档 */
+function otPartsOf(k, rec) {
+  if (!rec) return [];
+  const ot = num(rec.otHours, 0, 0, 24);
+  if (ot <= 0) return [];
+  const s = state.data.regular.settings;
+  if (Array.isArray(rec.otSplit)) {
+    const parts = [];
+    OT_KEYS.forEach((key, i) => {
+      const h = num(rec.otSplit[i], 0, 0, 24);
+      if (h > 0) parts.push({ key, h, mul: otMul(key, s) });
+    });
+    return parts;
+  }
+  const key = legalOtKey(k);
+  return [{ key, h: ot, mul: otMul(key, s) }];
+}
+
+/** 正式工当天的加班费（按实际拆分） */
+function regularDayOtPay(k, rec) {
+  if (!rec) return 0;
+  const hr = hourlyRateOfDay(k);
+  return round2(sum(otPartsOf(k, rec).map(p => p.h * p.mul)) * hr);
+}
+
+/** 如果全天按法定倍率应当拿多少 */
+function regularDayOtLegalPay(k, rec) {
+  if (!rec) return 0;
+  const ot = num(rec.otHours, 0, 0, 24);
+  if (ot <= 0) return 0;
+  return round2(ot * otMul(legalOtKey(k)) * hourlyRateOfDay(k));
+}
+
+/** 倍率被对调后少拿的钱（正数=被少算） */
+function regularDayOtLoss(k, rec) {
+  return round2(regularDayOtLegalPay(k, rec) - regularDayOtPay(k, rec));
+}
+
 function regularShortHours(rec) {
   const full = fullDayHours();
   const rh = (rec.regularHours === null || rec.regularHours === undefined) ? full : rec.regularHours;
@@ -94,9 +149,8 @@ function regularDayWage(k, rec, cyc) {
   if (rec.shift === '事假') {
     return isOffDay(k, 'regular') ? 0 : -round2(fullDayHours() * hr);
   }
-  const ot = num(rec.otHours, 0, 0, 24);
   const short = regularShortHours(rec);
-  return round2(ot * hr * multiplierFor(k) - short * hr);
+  return round2(regularDayOtPay(k, rec) - short * hr);
 }
 
 /** 临时工当天工资 */
@@ -145,6 +199,10 @@ function dayDesc(rec, kind) {
     if (!WORK_SHIFTS.includes(rec.shift)) return rec.shift;
     const short = regularShortHours(rec);
     let s = rec.shift + ' · 加班 ' + num(rec.otHours, 0, 0, 24) + ' 小时';
+    if (Array.isArray(rec.otSplit)) {
+      const txt = OT_KEYS.map((key, i) => rec.otSplit[i] > 0 ? OT_LABEL[key] + round2(rec.otSplit[i]) + 'h' : '').filter(Boolean).join(' + ');
+      if (txt) s += '（' + txt + '）';
+    }
     if (short > 0) s += ' · 正班缺 ' + short + ' 小时';
     return s;
   }
@@ -190,9 +248,9 @@ function cycleStats(y, m, kind) {
 
   if (kind === 'regular') {
     const s = state.data.regular.settings;
-    let base = 0, baseFull = 0, baseProrated = false, otPay = 0, leaveDeduct = 0, shortDeduct = 0;
-    let workDays = 0, otHours = 0, otWeekday = 0, otWeekend = 0, otHoliday = 0;
-    let payWeekday = 0, payWeekend = 0, payHoliday = 0;
+    let base = 0, baseFull = 0, baseProrated = false, otPayGross = 0, leaveDeduct = 0, shortDeduct = 0;
+    let workDays = 0, otHours = 0, otSplitDays = 0, otLegalPay = 0;
+    const otRaw = { wd: 0, we: 0, hd: 0 };
     const hr = hourlyRateFor('regular', cyc);
 
     for (const k of cyc.dates) {
@@ -204,39 +262,71 @@ function cycleStats(y, m, kind) {
         attendance++;
         workDays++;
         const ot = num(rec.otHours, 0, 0, 24);
-        const pay = ot * hr * multiplierFor(k);
-        otPay += pay;
+        const parts = otPartsOf(k, rec);
+        parts.forEach(p => { otRaw[p.key] += p.h; });
+        otPayGross += sum(parts.map(p => p.h * p.mul)) * hr;
         otHours += ot;
+        if (Array.isArray(rec.otSplit)) otSplitDays++;
+        otLegalPay += ot * otMul(legalOtKey(k), s) * hr;
         shortDeduct += regularShortHours(rec) * hr;
-        const t = dateType(k, 'regular');
-        if (t === 'holiday') { otHoliday += ot; payHoliday += pay; }
-        else if (t === 'weekend') { otWeekend += ot; payWeekend += pay; }
-        else { otWeekday += ot; payWeekday += pay; }
       } else if (rec.shift === '事假' && !isOffDay(k, 'regular')) {
         leaveDeduct += s.hoursPerDay * hr;
       }
     }
+
+    // 调休抵扣：默认从低倍率开始扣（先抵便宜的加班），也可改成从高倍率扣
+    const leaveHours = num(mon.leaveHours, 0, 0, 744);
+    const leaveOrder = mon.leaveOrder === 'high' ? 'high' : 'low';
+    const order = leaveOrder === 'high' ? OT_KEYS.slice().reverse() : OT_KEYS.slice();
+    let leaveLeft = leaveHours;
+    const leaved = { wd: 0, we: 0, hd: 0 };
+    for (const key of order) {
+      if (leaveLeft <= 0) break;
+      const take = Math.min(leaveLeft, otRaw[key]);
+      leaved[key] = round2(take);
+      otRaw[key] = round2(otRaw[key] - take);
+      leaveLeft = round2(leaveLeft - take);
+    }
+    const leaveApplied = round2(sum(OT_KEYS.map(x => leaved[x])));
+    const leaveExcess = round2(leaveLeft);
+    const otPay = round2(sum(OT_KEYS.map(key => otRaw[key] * otMul(key, s) * hr)));
+    const otWeekday = round2(otRaw.wd), otWeekend = round2(otRaw.we), otHoliday = round2(otRaw.hd);
+    const payWeekday = round2(otWeekday * s.mulWeekday * hr);
+    const payWeekend = round2(otWeekend * s.mulWeekend * hr);
+    const payHoliday = round2(otHoliday * s.mulHoliday * hr);
+
     baseFull = hasAny ? s.baseSalary : 0;
     base = baseFull;
-    if (baseFull > 0 && state.settleNow) {
-      const tk = todayKey();
-      if (tk >= ymd(cyc.start) && tk <= ymd(cyc.end)) {
-        let done = 0;
-        const payDays = payDaysInCycle(cyc, 'regular');
-        for (const k of cyc.dates) {
-          if (k > tk) break;
-          if (!isOffDay(k, 'regular')) done++;
-        }
-        base = round2(baseFull * Math.min(done, payDays) / Math.max(1, payDays));
-        baseProrated = true;
+    // 结算本月：底薪只按「记过的应出勤日」折算，没记的日子不发底薪。
+    // 与自然月/非自然月无关——直接数这个工资周期里已记录的日子。
+    let recordedDays = 0;
+    if (state.settleNow) {
+      for (const k of cyc.dates) {
+        if (isOffDay(k, 'regular')) continue;      // 休息日不在计薪天数里
+        const rec = state.data.regular.records[k];
+        if (!rec) continue;
+        if (rec.shift === '休息') continue;        // 工作日记「休息」不发底薪
+        recordedDays++;
+        // 事假 / 病假照常计入，事假的扣款在后面单独减，避免双扣
       }
+      const payDays = payDaysInCycle(cyc, 'regular');
+      base = round2(baseFull * Math.min(recordedDays, payDays) / Math.max(1, payDays));
+      baseProrated = true;
     }
     const baseDeduct = round2(leaveDeduct + shortDeduct);
     Object.assign(st, {
-      hourlyRate: hr, base, baseFull, baseProrated, otPay: round2(otPay),
+      hourlyRate: hr, base, baseFull, baseProrated, recordedDays,
+      otPay: round2(otPay), otPayGross: round2(otPayGross),
+      otLegalPay: round2(otLegalPay),
+      otLoss: round2(otLegalPay - otPayGross),
+      leaveCut: round2(otPayGross - otPay),
+      leaveHours, leaveOrder, leaveApplied, leaveExcess,
+      leaveParts: leaved,
+      otSplitDays,
+      rawOtParts: { wd: round2(otRaw.wd + leaved.wd), we: round2(otRaw.we + leaved.we), hd: round2(otRaw.hd + leaved.hd) },
       leaveDeduct: round2(leaveDeduct), shortDeduct: round2(shortDeduct), baseDeduct,
-      workDays, otHours: round2(otHours), otWeekday: round2(otWeekday), otWeekend: round2(otWeekend), otHoliday: round2(otHoliday),
-      payWeekday: round2(payWeekday), payWeekend: round2(payWeekend), payHoliday: round2(payHoliday),
+      workDays, otHours: round2(otHours), otWeekday, otWeekend, otHoliday,
+      payWeekday, payWeekend, payHoliday,
       net: round2(base + otPay + alwTotal - baseDeduct - dedTotal),
       payDays: payDaysInCycle(cyc, 'regular')
     });
@@ -246,18 +336,23 @@ function cycleStats(y, m, kind) {
   }
 
   if (kind === 'temp') {
-    let pay = 0, hours = 0;
+    const s = state.data.temp.settings;
+    const rateOut = num(s.rateOut, 0, 0, 1e6);
+    let pay = 0, hours = 0, payOut = 0;
     for (const k of cyc.dates) {
       const rec = state.data.temp.records[k];
       if (!rec) continue;
       hasAny = true;
       shiftCount[rec.shift] = (shiftCount[rec.shift] || 0) + 1;
       attendance++;
-      pay += num(rec.hours, 0, 0, 24) * num(rec.rate, 0, 0, 1e6);
-      hours += num(rec.hours, 0, 0, 24);
+      const h = num(rec.hours, 0, 0, 24);
+      pay += h * num(rec.rate, 0, 0, 1e6);
+      payOut += h * (rateOut > 0 ? rateOut : num(rec.rate, 0, 0, 1e6));
+      hours += h;
     }
     Object.assign(st, {
       pay: round2(pay), hours: round2(hours),
+      rateOut, payOut: round2(payOut), gap: rateOut > 0 ? round2(payOut - pay) : 0,
       net: round2(pay + alwTotal - dedTotal)
     });
     st.hasAny = hasAny;
@@ -296,7 +391,12 @@ function cycleStats(y, m, kind) {
   }
 
   // site
+  const ss = state.data.site.settings;
+  const dOut = num(ss.dayRateOut, 0, 0, 1e6);
+  const hOut = num(ss.hourRateOut, 0, 0, 1e6);
+  const oOut = num(ss.otRateOut, 0, 0, 1e6);
   let dayPay = 0, hourPay = 0, pkgPay = 0, otPay = 0, borrow = 0, settle = 0, units = 0, hours = 0, pkgQty = 0;
+  let dayPayOut = 0, hourPayOut = 0, otPayOut = 0;
   let workDays = 0;
   for (const k of cyc.dates) {
     const rec = state.data.site.records[k];
@@ -306,15 +406,23 @@ function cycleStats(y, m, kind) {
     if (rec.type === 'settle') { settle += num(rec.amount, 0, 0, 1e7); continue; }
     workDays++;
     attendance++;
-    if (rec.unit === 'day') { dayPay += num(rec.units, 0, 0, 30) * num(rec.dayRate, 0, 0, 1e6); units += num(rec.units, 0, 0, 30); }
-    else if (rec.unit === 'hour') { hourPay += num(rec.hours, 0, 0, 24) * num(rec.hourRate, 0, 0, 1e6); hours += num(rec.hours, 0, 0, 24); }
+    if (rec.unit === 'day') {
+      const u = num(rec.units, 0, 0, 30), r = num(rec.dayRate, 0, 0, 1e6);
+      dayPay += u * r; dayPayOut += u * (dOut > 0 ? dOut : r); units += u;
+    } else if (rec.unit === 'hour') {
+      const h = num(rec.hours, 0, 0, 24), r = num(rec.hourRate, 0, 0, 1e6);
+      hourPay += h * r; hourPayOut += h * (hOut > 0 ? hOut : r); hours += h;
+    }
     pkgPay += num(rec.pkgQty, 0, 0, 1e6) * num(rec.pkgRate, 0, 0, 1e6);
     pkgQty += num(rec.pkgQty, 0, 0, 1e6);
-    otPay += num(rec.otHours, 0, 0, 24) * num(rec.otRate, 0, 0, 1e6);
+    const oh = num(rec.otHours, 0, 0, 24), or = num(rec.otRate, 0, 0, 1e6);
+    otPay += oh * or; otPayOut += oh * (oOut > 0 ? oOut : or);
   }
   const gross = round2(dayPay + hourPay + pkgPay + otPay);
+  const grossOut = round2(dayPayOut + hourPayOut + pkgPay + otPayOut);
   Object.assign(st, {
     dayPay: round2(dayPay), hourPay: round2(hourPay), pkgPay: round2(pkgPay), otPay: round2(otPay),
+    grossOut, gap: round2(grossOut - gross), outEnabled: (dOut > 0 || hOut > 0 || oOut > 0),
     borrow: round2(borrow), settle: round2(settle), units: round2(units), hours: round2(hours), pkgQty: round2(pkgQty),
     workDays, gross,
     net: round2(gross + alwTotal - dedTotal - borrow - settle),

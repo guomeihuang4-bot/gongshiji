@@ -16,9 +16,17 @@ function settleBreakdown(kind, st) {
     if (st.otWeekday > 0) otSub.push(`平时 ${st.otWeekday}h ${money(st.payWeekday)}`);
     if (st.otWeekend > 0) otSub.push(`周末 ${st.otWeekend}h ${money(st.payWeekend)}`);
     if (st.otHoliday > 0) otSub.push(`节假日 ${st.otHoliday}h ${money(st.payHoliday)}`);
+    if (st.leaveApplied > 0) otSub.push(`已调休抵扣 ${st.leaveApplied}h`);
+    const otRest = round2(st.otHours - st.leaveApplied);
+    const otLabel = st.leaveApplied > 0
+      ? `加班费（原 ${st.otHours}h，抵扣后 ${otRest}h）`
+      : `加班费（${st.otHours} 小时）`;
     const ded = st.deductions.filter(i => i.name || i.amount).map(i => `${esc(i.name || '扣款')} ${money(i.amount)}`).join('、') || '未设置';
-    return liRow('底薪', money(st.base), { tag: st.baseProrated ? '截至今天' : '' })
-      + liRow(`加班费（${st.otHours} 小时）`, money(st.otPay), { sub: otSub.join(' · '), pos: st.otPay > 0 })
+    return liRow('底薪', money(st.base), { tag: st.baseProrated ? `已记录 ${st.recordedDays || 0} 天 / ${st.payDays || 0} 天` : '' })
+      + liRow(otLabel, money(st.otPay), { sub: otSub.join(' · '), pos: st.otPay > 0 })
+      + (st.otLoss > 0.005 ? liRow('倍率被调低', '-' + money(st.otLoss), { neg: true, sub: `按法定倍率应得 ${money(st.otLegalPay)}，实际 ${money(st.otPayGross)}` }) : '')
+      + (st.otLoss < -0.005 ? liRow('倍率比法定高', '+' + money(-st.otLoss), { pos: true, sub: `按法定倍率应得 ${money(st.otLegalPay)}，实际 ${money(st.otPayGross)}` }) : '')
+      + (st.leaveExcess > 0.005 ? liRow('调休多出', `${st.leaveExcess}h 未抵扣`, { sub: '本月加班已经全被调休抵掉，多出的部分不计' }) : '')
       + liRow('补贴', money(st.alwTotal), { pos: st.alwTotal > 0 })
       + liRow('扣款', st.dedTotal ? '-' + money(st.dedTotal) : money(0), { neg: st.dedTotal > 0, sub: ded })
       + (st.baseDeduct > 0 ? liRow('底薪扣款', '-' + money(st.baseDeduct), { neg: true, sub: `事假 ${money(st.leaveDeduct)} · 正班缺勤 ${money(st.shortDeduct)}` }) : '')
@@ -27,7 +35,8 @@ function settleBreakdown(kind, st) {
   if (kind === 'temp') {
     const ded = st.deductions.filter(i => i.name || i.amount).map(i => `${esc(i.name || '扣款')} ${money(i.amount)}`).join('、') || '未设置';
     const alw = st.allowances.filter(i => i.name || i.amount).map(i => `${esc(i.name || '补贴')} ${money(i.amount)}`).join('、') || '未设置';
-    return liRow(`工时工资（${st.hours} 小时）`, money(st.pay), { pos: st.pay > 0 })
+    return liRow(`工时工资（${st.hours} 小时，到手价）`, money(st.pay), { pos: st.pay > 0 })
+      + (st.rateOut > 0 ? liRow('应收（按对外价）', money(st.payOut), { sub: st.gap > 0.005 ? `差额 ${money(st.gap)} 没到手` : '和到手价一致' }) : '')
       + liRow('保险 / 扣款', st.dedTotal ? '-' + money(st.dedTotal) : money(0), { neg: st.dedTotal > 0, sub: ded })
       + liRow('补贴', money(st.alwTotal), { pos: st.alwTotal > 0, sub: alw })
       + liRow('实发工资', money(st.net), { total: true });
@@ -45,6 +54,7 @@ function settleBreakdown(kind, st) {
     + liRow(`小时工（${st.hours} 小时）`, money(st.hourPay), { pos: st.hourPay > 0 })
     + liRow(`包工（${st.pkgQty} 件）`, money(st.pkgPay), { pos: st.pkgPay > 0 })
     + liRow('加班费', money(st.otPay), { pos: st.otPay > 0 })
+    + (st.outEnabled ? liRow('应收（按对外单价）', money(st.grossOut), { sub: st.gap > 0.005 ? `差额 ${money(st.gap)} 没到手` : '和到手价一致' }) : '')
     + liRow('借支', st.borrow ? '-' + money(st.borrow) : money(0), { neg: st.borrow > 0 })
     + liRow('结算（已发）', st.settle ? '-' + money(st.settle) : money(0), { neg: st.settle > 0 })
     + liRow('应发合计', money(st.gross), {})

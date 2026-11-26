@@ -92,9 +92,22 @@ function copyText(text, btn) {
   } else fallback();
 }
 
+/* ---------- 键盘来源：内置 / 手机自带 ---------- */
+function sysKbOn() {
+  try { return localStorage.getItem('gongshi_syskb') === '1'; } catch (e) { return false; }
+}
+function setSysKb(on) {
+  try { localStorage.setItem('gongshi_syskb', on ? '1' : '0'); } catch (e) { }
+  if (window.GongKeypad && window.GongKeypad.setSystemKb) window.GongKeypad.setSystemKb(on);
+}
+function aboutSysKbLabel() {
+  return sysKbOn() ? '恢复内置键盘' : '改用手机自带键盘';
+}
+
 function openAbout() {
   const html = sourceHTML();
   const el = $('aboutDialog');
+  const usingSys = sysKbOn();
   el.innerHTML = `<div class="sheet-inner">
     <div class="grip"></div>
     <div class="sheet-head">
@@ -107,22 +120,42 @@ function openAbout() {
         <h2>工时记</h2>
         <p>无账号 · 无联网 · 内置隐私键盘</p>
       </div>
-      <div class="about-text">无账号、无联网、内置隐私键盘（虽然没什么用，很多手机系统都是能后台看你的屏幕的）的纯本地记薪水软件，因无联网的缘故，暂且假期显示只做了 2025 年到 2030 年，可能会因为国家修改节假日产生变化从而产生错误。
+      <div class="about-text">无账号、无联网、内置隐私键盘（虽然没什么用，很多手机系统都是能后台看你屏幕的）的纯本地记薪水软件，因无联网的缘故，暂且假期显示只做了 2025 年到 2030 年，可能会因为国家修改节假日产生变化从而产生错误。
 
 作者：deep seek
 
-联系方式：deepseekharmness，遇到问题请自行维护或者卸载
+联系方式：deepseekharness，遇到问题请自行维护或者卸载，重新打包 app 就是你的了。
 
 数据全部保存在这台手机里，不会上传到任何地方。换手机或清理数据前，请先在「设置 → 数据与备份」里导出备份。</div>
 
       <div class="about-block">
-        <div class="bh"><b>源码（HTML代码）</b>
+        <div class="bh"><b>GitHub 仓库</b>
+          <button class="copy-btn" type="button" data-action="copy-gh" data-url="https://github.com/guomeihuang4-bot/gongshiji">复制地址</button>
+        </div>
+        <p class="help" style="word-break:break-all">https://github.com/guomeihuang4-bot/gongshiji<br>源码、新版 APK、网页版都在这里，可以自己下载、改、重新打包。</p>
+      </div>
+
+      <div class="about-block">
+        <div class="bh"><b>键盘不好用？</b></div>
+        <p class="help" style="margin-top:2px">打不出字、键盘没弹出来、不习惯内置键盘，点下面的按钮换成手机自带的键盘。随时可以再换回来。</p>
+        <button class="btn btn-soft btn-block" type="button" data-action="toggle-syskb" id="aboutSysKbBtn" style="margin-top:10px">${aboutSysKbLabel()}</button>
+        <p class="help" id="aboutSysKbState">当前使用：<b>${usingSys ? '手机自带键盘' : '内置键盘'}</b></p>
+      </div>
+
+      <div class="about-block">
+        <div class="bh"><b>许可</b></div>
+        <p class="help">本软件免费开源，可自由使用、修改、再分发，保留作者说明即可。数据全部存在本机，不联网、不上传、无账号。</p>
+        <p class="help">内置键盘的识别引擎来自 HanziLookupJS（GNU GPL），手写字库衍生自 Make Me a Hanzi（Arphic Public License），拼音词库由公开语料整理。再分发时请一并保留这些组件的许可声明。</p>
+      </div>
+
+      <div class="about-block">
+        <div class="bh"><b>源码（HTML 代码）</b>
           <button class="copy-btn" type="button" data-action="copy-html">一键复制</button>
         </div>
         <pre>${esc(html.slice(0, 420))}…</pre>
       </div>
 
-      <p class="help">点「一键复制」会把包含样式、脚本和全部代码的完整 HTML 复制下来，可以直接发给别人，或者存成 .html 用浏览器打开。</p>
+      <p class="help">点「一键复制」复制的是当前页面的完整 HTML（单文件版已含键盘），存成 .html 双击就能用。自己改代码用「主程序 + keypad.js」两个文件，打包 APK 用单文件版。</p>
     </div>
     <div class="sheet-foot">
       <button class="btn btn-primary btn-block" type="button" data-action="close-sheet" data-sheet="aboutDialog">知道了</button>
@@ -161,8 +194,8 @@ function applyBackground() {
     root.style.setProperty('--card-alpha', String(alpha));
     root.style.setProperty('--surf-a', String(alpha));
     root.style.setProperty('--surf-a2', String(Math.min(1, alpha + 0.16)));
-    // 明细/设置页文字多，底子更实一点（不低于 90%），保证看得清
-    root.style.setProperty('--surf-b', String(Math.min(1, Math.max(0.9, alpha + 0.35))));
+    // 明细/设置页底色略实于日历，但跟随滑块变化，保留清晰的壁纸透出。
+    root.style.setProperty('--surf-b', String(Math.min(1, Math.max(0.4, alpha + 0.12))));
   } catch (e) { }
   body.classList.toggle('has-bg-image', custom);
   body.classList.toggle('bg-custom', custom || theme.preset !== 'default');

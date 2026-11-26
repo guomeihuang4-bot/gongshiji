@@ -43,6 +43,13 @@ function onFieldInput(e) {
     updateHourlyHint();
     return;
   }
+  if (t.dataset.mon) {
+    const mon = curMonthly();
+    const v = t.value === '' ? 0 : num(t.value, 0, 0, 744);
+    mon[t.dataset.mon] = v;
+    persist();
+    return;
+  }
   if (t.dataset.item) {
     const parts = t.dataset.item.split(':');
     const prefix = parts[0], idx = Number(parts[1]), field = parts[2];
@@ -72,7 +79,7 @@ function closeAllSheets() {
     const el = $(id);
     if (el && el.open) el.close();
   });
-  kpToggle(false);
+  if (window.GongKeypad) window.GongKeypad.close();
   clearInterval(timerTick);
 }
 
@@ -121,6 +128,25 @@ function onClick(e) {
     }
     case 'quick-ot': {
       editorDraft.otHours = t.dataset.v === '0' ? '' : t.dataset.v;
+      if (editorDraft.showSplit) {
+        // 总数变了：把差额补进「平时」档，再让其它档自动平衡
+        const total = num(editorDraft.otHours, 0, 0, 24);
+        const arr = (editorDraft.otSplit || [0, 0, 0]).map(x => num(x, 0, 0, 24));
+        editorDraft.otSplit = [Math.max(0, round2(total - arr[1] - arr[2])), arr[1], arr[2]];
+        rebalanceSplit(0, editorDraft.otSplit[0]);
+      }
+      refreshEditorBody();
+      return;
+    }
+    case 'toggle-otsplit': {
+      editorDraft.showSplit = !editorDraft.showSplit;
+      if (editorDraft.showSplit) {
+        // 第一次打开：默认全部按法定档，随后可手工拆
+        const total = num(editorDraft.otHours, 0, 0, 24);
+        const arr = [0, 0, 0];
+        arr[OT_KEYS.indexOf(legalOtKey(editingKey))] = total;
+        editorDraft.otSplit = arr;
+      }
       refreshEditorBody();
       return;
     }
@@ -174,6 +200,16 @@ function onClick(e) {
     }
 
     case 'about': openAbout(); return;
+    case 'toggle-syskb': {
+      const on = !sysKbOn();
+      setSysKb(on);
+      toast(on ? '已改用手机自带键盘' : '已恢复内置键盘');
+      const btn = $('aboutSysKbBtn');
+      if (btn) btn.textContent = aboutSysKbLabel();
+      const st = $('aboutSysKbState');
+      if (st) st.innerHTML = '当前使用：<b>' + (on ? '手机自带键盘' : '内置键盘') + '</b>';
+      return;
+    }
     case 'copy-js': {
       const el = $('aboutDialog');
       copyText(el.dataset.js || sourceJS(), t);
@@ -182,6 +218,10 @@ function onClick(e) {
     case 'copy-html': {
       const el = $('aboutDialog');
       copyText(el.dataset.html || sourceHTML(), t);
+      return;
+    }
+    case 'copy-gh': {
+      copyText(t.dataset.url || 'https://github.com/guomeihuang4-bot/gongshiji', t);
       return;
     }
 
@@ -226,6 +266,13 @@ function onClick(e) {
       persist(true); render(); return;
     }
 
+    case 'set-leave-order': {
+      curMonthly().leaveOrder = t.dataset.v === 'high' ? 'high' : 'low';
+      persist(true);
+      render();
+      toast(t.dataset.v === 'high' ? '调休先从高倍率扣' : '调休先从低倍率扣');
+      return;
+    }
     case 'toggle-set': {
       const key = t.dataset.attr;
       const s = state.data[state.active].settings;
@@ -264,7 +311,7 @@ function onClick(e) {
     case 'settle-now': {
       state.settleNow = !state.settleNow;
       persist(true); render();
-      toast(state.settleNow ? '已按今天结算（未到的底薪已扣除）' : '已恢复整月结算');
+      toast(state.settleNow ? '已按记录结算：只算记过的日子，没记的底薪不发' : '已恢复整月结算');
       return;
     }
     default: return;
@@ -437,11 +484,14 @@ function bindEvents() {
   ['editor', 'aboutDialog', 'bgDialog', 'payslipDialog', 'timerDialog', 'cycleDialog'].forEach(id => {
     const el = $(id);
     if (el) el.addEventListener('close', () => {
-      if (id === 'editor') { editingKey = null; editorDraft = null; kpToggle(false); }
+      if (id === 'editor') {
+        editingKey = null; editorDraft = null;
+        if (window.GongKeypad) window.GongKeypad.close();
+      }
       if (id === 'timerDialog') clearInterval(timerTick);
     });
   });
-  bindKeypadTriggers();
+  /* 键盘由独立模块 keypad.js 自行初始化并绑定输入框 */
 }
 
 /* ---------- 后台守护：自动保存 + 定时刷新计时 ---------- */
@@ -456,7 +506,7 @@ window.addEventListener('beforeunload', () => persist(true));
 /* ---------- 返回键（APP 内调用） ---------- */
 window.__onBack = function () {
   try {
-    if (kpOpen) { kpToggle(false); return true; }
+    if (window.GongKeypad && window.GongKeypad.isOpen()) { window.GongKeypad.close(); return true; }
     const order = ['confirmDialog', 'editor', 'cycleDialog', 'payslipDialog', 'bgDialog', 'aboutDialog', 'timerDialog'];
     for (const id of order) {
       const el = $(id);
@@ -467,7 +517,7 @@ window.__onBack = function () {
   } catch (e) { return false; }
 };
 
-/* ---------- 调试/自动化接口（离线单文件，不联网） ---------- */
+/* ---------- 调试/自动化接口（完全离线，不联网） ---------- */
 window.__app = {
   get state() { return state; },
   get theme() { return theme; },
@@ -481,12 +531,12 @@ window.__app = {
   hourlyRateFor, hourlyRateOfDay, multiplierFor, lunarText, pieceDayWage, siteDayWage,
   render, persist, openEditor, saveEntry, openPayslip, payslipHTML, exportBackup,
   applyBackground, openBg, resetBg, handleBgFile,
-  /* 键盘：测试与调试用 */
-  get keypad() { return { open: kpOpen, mode: kpMode, buf: kpBuf, cands: kpCands, page: kpPage, seg: kpSeg }; },
-  kpPick: i => kpPickIndex(i),
-  kpPress: k => kpPress(k),
-  pyAnalyze, t9Analyze, pySegDisplay,
-  get lexSize() { return LEX.size; },
+  /* 键盘：测试与调试用（键盘已拆为独立模块，走 GongKeypad 接口） */
+  get keypad() { return window.GongKeypad ? window.GongKeypad.state() : null; },
+  kpPick: i => { if (window.GongKeypad) window.GongKeypad.pick(i); },
+  kpPress: k => { if (window.GongKeypad) window.GongKeypad.press(k); },
+  pyAnalyze: raw => (window.GongKeypad ? window.GongKeypad.analyze(raw) : null),
+  t9Analyze: d => (window.GongKeypad ? window.GongKeypad.analyzeT9(d) : null),
   toast: msg => toast(msg),
   version: APP_VERSION
 };

@@ -1,7 +1,7 @@
 import { boot, group, ok, eq, near, click, navTo, switchWorker, report } from './helpers.mjs';
 import fs from 'fs';
 
-const backup = fs.readFileSync('/sdcard/Download/工时记备份-2026-11-20.json', 'utf8');
+const backup = fs.readFileSync('/sdcard/0.21版本工作区/全局管理/项目管理/应用开发/工时记/工时记备份-2026-11-20 (1).json', 'utf8');
 const raw = JSON.parse(backup);
 console.log('备份记录数:', Object.keys(raw.records).length, '月份:', Object.keys(raw.monthly));
 

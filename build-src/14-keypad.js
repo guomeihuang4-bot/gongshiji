@@ -17,6 +17,38 @@ let kpSeg = '';
 let kpShift = false;
 let kpLastTextMode = 'py26';
 const KP_PAGE_SIZE = 8;
+
+/* 手写识别状态 */
+let hwStrokes = [];    // 已完成的笔画，每笔是 [{x,y},...]
+let hwDrawing = null;  // 正在画的那一笔
+let hwPicked = false;  // 刚点过候选，下一笔开始前自动清屏
+let hwTimer = 0;
+let hwDpr = 1;
+let hwMatcher = null;
+let hwEngineReady = false;
+let kpSysTarget = null;   // 点了「系统键盘」、本次聚焦不应再弹内置键盘的那个输入框
+const KP_SYS_KEY = 'gongshi_syskb';   // 用户是否选择全程使用手机自带键盘
+
+/** 用户是否在「关于」里选了用手机自带键盘（不做内置键盘） */
+function kpSysKbOn() { try { return localStorage.getItem(KP_SYS_KEY) === '1'; } catch (e) { return false; } }
+
+/**
+ * 选了「手机自带键盘」后，输入框要恢复成普通输入框：
+ * 编辑器模板给每个 input 都写死了 readonly + inputmode="none"，
+ * 不清掉这两个，系统键盘照样弹不出来。
+ */
+function kpFreeInput(el) {
+  if (!el) return;
+  try { if (el.readOnly) el.readOnly = false; } catch (e) { }
+  try {
+    if (el.getAttribute && el.getAttribute('inputmode') === 'none') el.removeAttribute('inputmode');
+    if (el.removeAttribute) { el.removeAttribute('inputmode'); el.removeAttribute('readonly'); }
+  } catch (e) { }
+}
+function kpApplySystemKbUI() {
+  if (!kpSysKbOn()) return;
+  $$('input[data-num],input[data-text]').forEach(kpFreeInput);
+}
 /** 每页候选数按候选栏宽度算，窄屏少放几个，避免被裁掉 */
 function kpPageSize() {
   const box = $('kpCands');
@@ -31,18 +63,23 @@ function kpIsText(input) { return !!input && !input.dataset.num; }
 function kpSavedTextMode() {
   try {
     const m = localStorage.getItem(KP_MODE_KEY);
-    if (m === 'py26' || m === 'py9' || m === 'en') return m;
+    if (m === 'py26' || m === 'py9' || m === 'en' || m === 'hw') return m;
   } catch (e) { }
   return 'py26';
 }
 
 function kpToggle(open, input) {
+  // 键盘 DOM 可能被弹窗重写/销毁过（比如编辑器 innerHTML 整体替换），
+  // 打开前先确保它还在，不在就重新注入，避免「键盘从此再也弹不出来」。
+  if (!document.getElementById('keypad')) kpEnsureDom();
   const el = $('keypad');
   if (!el) return;
   if (open) {
     const dlg = document.querySelector('dialog[open]');
     const host = dlg || document.body;
     if (el.parentElement !== host) host.appendChild(el);
+    if (kpSysKbOn()) return;   // 已选手机自带键盘，内置键盘不再弹出
+    kpSysTarget = null;   // 用户主动点输入框，恢复内置键盘
     kpInput = input;
     kpOpen = true;
     kpFresh = true;
@@ -66,6 +103,10 @@ function kpToggle(open, input) {
     kpBuf = '';
     kpCands = [];
     kpPage = 0;
+    hwFreezeTimer();
+    hwStrokes = [];
+    hwDrawing = null;
+    hwPicked = false;
     el.classList.remove('on');
     el.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('kp-open');
@@ -114,7 +155,7 @@ function kpSetMode(mode) {
   if (!$('keypad') || !kpOpen) return;
   if (kpInput && kpInput.dataset.num && mode !== 'num') return;
   kpMode = mode;
-  if (mode === 'py26' || mode === 'py9' || mode === 'en') {
+  if (mode === 'py26' || mode === 'py9' || mode === 'en' || mode === 'hw') {
     kpLastTextMode = mode;
     try { localStorage.setItem(KP_MODE_KEY, mode); } catch (e) { }
   }
@@ -123,6 +164,8 @@ function kpSetMode(mode) {
   kpPage = 0;
   kpSeg = '';
   kpFreezeDel();
+  hwFreezeTimer();
+  if (mode === 'hw') { hwStrokes = []; hwDrawing = null; hwPicked = false; hwRedraw(); }
   kpRefresh();
   setTimeout(() => kpScrollInputIntoView(kpInput), 120);
 }
@@ -137,11 +180,12 @@ function kpRefresh() {
     b.classList.toggle('on', b.dataset.mode === kpMode);
     b.disabled = isNum && b.dataset.mode !== 'num';
   });
-  const grid = $('kpGrid'), alpha = $('kpAlpha'), t9 = $('kpT9');
+  const grid = $('kpGrid'), alpha = $('kpAlpha'), t9 = $('kpT9'), hwBox = $('kpHw');
   if (grid) grid.hidden = kpMode !== 'num';
   if (alpha) alpha.hidden = !(kpMode === 'en' || kpMode === 'py26');
   if (t9) t9.hidden = kpMode !== 'py9';
-  kpAnalyzeBuf();   // 先算候选与分词，界面才能显示最新的拼音串
+  if (hwBox) hwBox.hidden = kpMode !== 'hw';
+  if (kpMode === 'hw') hwSync(); else kpAnalyzeBuf();
   const lbl = $('kpLabel'), val = $('kpVal'), unit = $('kpUnit'), py = $('kpPy');
   if (lbl) lbl.textContent = kpLabelOf(kpInput);
   if (val) val.textContent = kpInput.value === '' ? (kpMode === 'num' ? '0' : '') : kpInput.value;
@@ -234,7 +278,23 @@ function kpPickIndex(i) {
   kpInsert(c.t);
   kpBuf = c.rest || '';
   kpPage = 0;
+  if (kpMode === 'hw') hwPicked = true;   // 已上屏，下一笔开始前自动清屏
   kpRefresh();
+  if (kpMode === 'hw') hwAfterPick();
+}
+
+/** 候选上屏后清空画板，方便直接写下一个字 */
+function hwAfterPick() {
+  hwFreezeTimer();
+  hwStrokes = [];
+  hwDrawing = null;
+  hwPicked = false;
+  kpCands = [];
+  kpPage = 0;
+  hwRedraw();
+  hwHint(true);
+  kpRenderCands();
+  kpSyncPad();
 }
 
 function kpDelete() {
@@ -290,12 +350,15 @@ function kpPress(key) {
   if (key === 'done') { kpToggle(false); persist(true); return; }
   if (key === 'hide') { kpToggle(false); return; }
   if (key === 'sys') {
+    /* 切系统键盘：先收起内置键盘，再告诉 focusin「这次是我自己聚焦的」，
+       否则 input.focus() 会立刻触发 focusin 把内置键盘弹回来、readOnly 也设回去 */
     const el = kpInput;
     kpToggle(false);
-    try {
-      el.readOnly = false;
-      el.focus();
-    } catch (e) { }
+    if (!el) return;
+    kpSysTarget = el;
+    try { el.readOnly = false; } catch (e) { }
+    /* 必须同步聚焦：iOS/Android 只在用户手势的调用栈里才允许弹系统键盘 */
+    try { el.focus(); } catch (e) { }
     return;
   }
   if (key === 'del') { kpDelete(); return; }
@@ -396,11 +459,21 @@ function bindKeypadTriggers() {
   const SEL = 'input[data-num],input[data-text]';
   document.addEventListener('focusin', e => {
     const t = e.target;
-    if (t && t.matches && t.matches(SEL)) kpToggle(true, t);
+    if (!(t && t.matches && t.matches(SEL))) return;
+    /* 刚从「系统键盘」按钮切过来的这一次聚焦，交给系统输入法，不再弹内置键盘 */
+    if (t === kpSysTarget) { kpSysTarget = null; return; }
+    if (kpSysKbOn()) return;      // 全程用手机自带键盘
+    kpToggle(true, t);
   });
+  document.addEventListener('pointerdown', e => {
+    if (!kpSysKbOn()) return;
+    const t = e.target;
+    if (t && t.matches && t.matches(SEL)) kpFreeInput(t);
+  }, true);
   document.addEventListener('mousedown', e => {
     const t = e.target;
     if (t && t.matches && t.matches(SEL)) {
+      if (kpSysKbOn()) { kpFreeInput(t); return; }   // 交给原生聚焦，别妨碍系统键盘
       e.preventDefault();
       try { t.focus(); } catch (err) { }
     }
@@ -412,6 +485,7 @@ function bindKeypadTriggers() {
       if (!b) return;
       if (b.disabled) return;
       if (b.dataset.mode) { kpSetMode(b.dataset.mode); return; }
+      if (b.dataset.hw) { hwAction(b.dataset.hw); return; }
       if (b.dataset.cand !== undefined && b.dataset.cand !== '') {
         const i = b.dataset.ci !== undefined ? Number(b.dataset.ci) : kpCands.findIndex(c => c.t === b.dataset.cand);
         if (i >= 0) kpPickIndex(i);
@@ -427,6 +501,7 @@ function bindKeypadTriggers() {
     });
   }
   bindKeypadPointer();
+  hwBind();
   // 点击键盘和输入框以外的地方收起（刚打开 450ms 内的点击忽略）
   document.addEventListener('click', e => {
     if (!kpOpen) return;
@@ -440,9 +515,268 @@ function bindKeypadTriggers() {
     if (lab && lab.querySelector('input[data-num],input[data-text]')) return;
     kpToggle(false);
   });
+  // 弹窗关闭时先收起键盘，并把键盘 DOM 移回 body。
+  // 否则键盘还挂在 dialog 里，下次 openEditor 重写 dialog.innerHTML 时会把它删掉，
+  // 内置键盘从此弹不出来。
+  $$('dialog').forEach(d => {
+    d.addEventListener('close', () => { if (kpOpen) kpToggle(false); });
+  });
 }
 
 /** 文本输入框使用内置键盘（不再弹系统输入法） */
 function makeTextInputsCustom() {
-  $$('input[data-text]').forEach(el => { el.readOnly = true; });
+  const sys = kpSysKbOn();
+  $$('input[data-text]').forEach(el => { el.readOnly = !sys; });
 }
+
+/* =====================================================================
+   手写输入（半屏手写板）
+   - 识别引擎 HanziLookupJS（08c）+ 内嵌字库（08d），完全离线，无网络请求
+   - 写完一笔停顿自动识别，候选显示在键盘上方候选栏，点选上屏
+   - 点选后下一笔开始前自动清屏；也可手动清空 / 退一格
+   ===================================================================== */
+
+/** 初始化识别引擎（首次进入手写模式时才真正解码字库） */
+function hwEnsureEngine() {
+  if (hwEngineReady) return true;
+  if (typeof HanziLookup === 'undefined' || typeof HL_MMAH === 'undefined') return false;
+  try {
+    HanziLookup.initInline('mmah', HL_MMAH);
+    hwEngineReady = true;
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/** 键盘尺寸变化时同步 canvas 像素尺寸 */
+function hwSync() {
+  const cv = $('kpHwCanvas'), board = $('kpHwBoard');
+  if (!cv || !board) return;
+  const w = board.clientWidth, h = board.clientHeight;
+  if (!w || !h) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const pw = Math.round(w * dpr), ph = Math.round(h * dpr);
+  if (cv.width !== pw || cv.height !== ph || hwDpr !== dpr) {
+    cv.width = pw;
+    cv.height = ph;
+    hwDpr = dpr;
+    hwRedraw();
+  }
+}
+
+function hwCtx() {
+  const cv = $('kpHwCanvas');
+  if (!cv) return null;
+  const ctx = cv.getContext('2d');
+  if (!ctx) return null;
+  ctx.setTransform(hwDpr, 0, 0, hwDpr, 0, 0);
+  ctx.lineWidth = 7;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#2b3d58';
+  return ctx;
+}
+
+function hwRedraw() {
+  const cv = $('kpHwCanvas');
+  if (!cv) return;
+  const ctx = hwCtx();
+  if (!ctx) return;
+  ctx.clearRect(0, 0, cv.width / hwDpr, cv.height / hwDpr);
+  for (let i = 0; i < hwStrokes.length; i++) {
+    const st = hwStrokes[i];
+    if (!st || !st.length) continue;
+    ctx.beginPath();
+    ctx.moveTo(st[0].x, st[0].y);
+    if (st.length === 1) {
+      ctx.lineTo(st[0].x + 0.1, st[0].y + 0.1);
+    } else {
+      for (let j = 1; j < st.length; j++) ctx.lineTo(st[j].x, st[j].y);
+    }
+    ctx.stroke();
+  }
+}
+
+function hwHint(show) {
+  const el = $('kpHwHint');
+  if (el) el.classList.toggle('off', !show);
+}
+
+/** 清空手写板与候选 */
+function hwReset() {
+  hwFreezeTimer();
+  hwStrokes = [];
+  hwDrawing = null;
+  hwPicked = false;
+  kpCands = [];
+  kpPage = 0;
+  hwRedraw();
+  hwHint(true);
+  kpRenderCands();
+  kpSyncPad();
+}
+
+function hwFreezeTimer() {
+  if (hwTimer) { clearTimeout(hwTimer); hwTimer = 0; }
+}
+
+/** 笔一停就安排识别（防抖，避免每移动一下就匹配） */
+function hwSchedule() {
+  hwFreezeTimer();
+  hwTimer = setTimeout(function () {
+    hwTimer = 0;
+    hwRecognize();
+  }, 220);
+}
+
+/**
+ * 候选重排：字形分数相近时让常用字优先。
+ * 手写识别容易把「口/囗」「人/入」「日/曰」这类形近字搞混，
+ * 借词库里的常用度表（CHAR_RANK，越靠前越常用）做一点加权。
+ */
+function hwCharBonus(ch) {
+  const r = (typeof CHAR_RANK_MAP !== 'undefined') ? CHAR_RANK_MAP.get(ch) : undefined;
+  const rank = (r === undefined) ? 6000 : r;   // 生僻字按最不常用处理
+  return -0.12 * Math.log(rank + 10);
+}
+
+/** 拿笔画做识别，结果塞进候选栏 */
+function hwRecognize() {
+  if (!hwStrokes.length) return;
+  const strokes = [];
+  for (let i = 0; i < hwStrokes.length; i++) {
+    const st = hwStrokes[i];
+    if (!st || st.length < 2) continue;
+    const pts = [];
+    for (let j = 0; j < st.length; j++) pts.push([st[j].x, st[j].y]);
+    strokes.push(pts);
+  }
+  if (!strokes.length) return;
+  if (!hwEnsureEngine()) {
+    toast('手写字库未加载');
+    return;
+  }
+  try {
+    const analyzed = new HanziLookup.AnalyzedCharacter(strokes);
+    if (!hwMatcher) hwMatcher = new HanziLookup.Matcher('mmah', 0.25);
+    hwMatcher.match(analyzed, 16, function (matches) {
+      const list = (matches || []).map(function (m) {
+        return { t: m.character, rest: '', sc: m.score + hwCharBonus(m.character) };
+      });
+      list.sort(function (a, b) { return b.sc - a.sc; });
+      kpCands = list;
+      kpPage = 0;
+      kpRenderCands();
+    });
+  } catch (e) {
+    /* 笔画太短或异常时忽略，不打断输入 */
+  }
+}
+
+/** 手写面板下方四个按钮 */
+function hwAction(a) {
+  if (a === 'clear') { hwReset(); return; }
+  if (a === 'undo') {
+    hwFreezeTimer();
+    if (hwStrokes.length) {
+      hwStrokes.pop();
+      hwDrawing = null;
+      hwPicked = false;
+      hwRedraw();
+      if (hwStrokes.length) hwSchedule();
+      else { kpCands = []; kpPage = 0; hwHint(true); kpRenderCands(); }
+    } else {
+      // 画板已空时退格当作删输入框里的字
+      kpDelete();
+    }
+    return;
+  }
+  if (a === 'space') { kpInsert(' '); kpRefresh(); return; }
+  if (a === 'done') { kpToggle(false); persist(true); return; }
+}
+
+/** 绑定手写板指针事件 */
+function hwBind() {
+  const board = $('kpHwBoard');
+  if (!board || board.dataset.hwBound) return;
+  board.dataset.hwBound = '1';
+
+  function pos(e) {
+    const r = board.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(r.width, e.clientX - r.left)),
+      y: Math.max(0, Math.min(r.height, e.clientY - r.top))
+    };
+  }
+
+  board.addEventListener('pointerdown', function (e) {
+    if (e.button !== undefined && e.button !== 0 && e.pointerType !== 'touch') return;
+    e.preventDefault();
+    if (hwPicked) { hwReset(); }
+    hwFreezeTimer();
+    try { board.setPointerCapture(e.pointerId); } catch (err) { }
+    hwDrawing = [pos(e)];
+    hwStrokes.push(hwDrawing);
+    hwHint(false);
+    const ctx = hwCtx();
+    if (ctx) {
+      ctx.beginPath();
+      ctx.moveTo(hwDrawing[0].x, hwDrawing[0].y);
+      ctx.lineTo(hwDrawing[0].x + 0.1, hwDrawing[0].y + 0.1);
+      ctx.stroke();
+    }
+  }, { passive: false });
+
+  board.addEventListener('pointermove', function (e) {
+    if (!hwDrawing) return;
+    e.preventDefault();
+    const p = pos(e);
+    const last = hwDrawing[hwDrawing.length - 1];
+    if (Math.abs(p.x - last.x) + Math.abs(p.y - last.y) < 1.2) return;
+    hwDrawing.push(p);
+    const ctx = hwCtx();
+    if (ctx) {
+      ctx.beginPath();
+      ctx.moveTo(last.x, last.y);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    }
+  }, { passive: false });
+
+  function end(e) {
+    if (!hwDrawing) return;
+    if (e && e.preventDefault) e.preventDefault();
+    hwDrawing = null;
+    hwSchedule();
+  }
+  board.addEventListener('pointerup', end, { passive: false });
+  board.addEventListener('pointercancel', end, { passive: false });
+  board.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+}
+
+/* 把键盘 DOM 注入 body（已存在则跳过）。kpToggle 和自举都会调用，
+   保证键盘被弹窗重写删掉之后还能自己长回来。 */
+function kpEnsureDom() {
+  if (document.getElementById('keypad')) return true;
+  try {
+    if (typeof KP_DOM !== 'string') return false;
+    const box = document.createElement('div');
+    box.innerHTML = KP_DOM.trim();
+    const el = box.firstElementChild;
+    if (!el) return false;
+    document.body.appendChild(el);
+    return true;
+  } catch (e) { return false; }
+}
+
+/* 屏幕旋转 / 键盘高度变化时重算手写板尺寸 */
+window.addEventListener('resize', function () {
+  const el = document.getElementById('keypad');
+  if (kpOpen && kpMode === 'hw' && el && el.classList.contains('on')) hwSync();
+});
+window.addEventListener('orientationchange', function () {
+  setTimeout(function () {
+    if (kpOpen && kpMode === 'hw') hwSync();
+  }, 260);
+});

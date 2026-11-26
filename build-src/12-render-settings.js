@@ -93,7 +93,8 @@ function settingsPage() {
     <section class="card set-card">
       <div class="sc-head"><span class="ico">${ICON.clock}</span><div><h2>临时工参数</h2><div class="sub">按小时结算，不含社保公积金</div></div></div>
       <div class="sc-body">
-        ${numField('默认小时单价', 'rate', s.rate || '', '元 / 小时', { ph: '例如 20' })}
+        ${numField('默认小时单价（到手）', 'rate', s.rate || '', '元 / 小时', { ph: '例如 20' })}
+        ${numField('对外单价（报价）', 'rateOut', s.rateOut || '', '元 / 小时', { ph: '不填 = 和到手价一样', hint: '用来区分「谈好的价」和「实际到手的价」，明细里会算差额。' })}
         <div class="grid2">
           ${numField('默认每天工时', 'defaultHours', s.defaultHours, '小时')}
           <label class="field">默认班次
@@ -134,6 +135,13 @@ function settingsPage() {
           ${numField('加班单价', 'otRate', s.otRate || '', '元 / 小时')}
           ${numField('包工默认单价', 'packageRate', s.packageRate || '', '元 / 件')}
         </div>
+        <div class="field-title" style="margin-top:14px">对外单价（报价，可选）</div>
+        <div class="grid2">
+          ${numField('对外日薪', 'dayRateOut', s.dayRateOut || '', '元 / 工')}
+          ${numField('对外时薪', 'hourRateOut', s.hourRateOut || '', '元 / 小时')}
+        </div>
+        ${numField('对外加班单价', 'otRateOut', s.otRateOut || '', '元 / 小时')}
+        <p class="help">不填就按上面的到手价算。填了以后，明细里会多出「应收 / 实收 / 差额」——差额就是被抽走或没拿到的那部分。</p>
         <p class="help">点工默认按 1 个工＝一个日薪；半天可填 0.5 个工。包工按「数量 × 单价」算，借支和结算单独记账，不参与工资。</p>
       </div>
     </section>`;
@@ -172,6 +180,22 @@ function settingsPage() {
       <p class="help">周期是全局的，四种工种共用；切换工种只换数据，不换周期。</p>
     </div>
   </section>
+
+  ${kind === 'regular' ? `
+  <section class="card set-card">
+    <div class="sc-head"><span class="ico">${ICON.refresh}</span><div><h2>调休抵扣</h2><div class="sub">本月用调休换掉了多少加班 · 维护月份：${month.getFullYear()} 年 ${month.getMonth() + 1} 月</div></div></div>
+    <div class="sc-body">
+      <label class="field">本月调休小时
+        <div class="input-unit"><input type="text" readonly inputmode="none" data-num="dec" data-mon="leaveHours" value="${mon.leaveHours || ''}" placeholder="0" aria-label="本月调休小时"><span>小时</span></div>
+      </label>
+      <div class="field-title" style="margin-top:12px">抵扣顺序</div>
+      <div class="quick-row">
+        <button class="qbtn ${mon.leaveOrder !== 'high' ? 'on' : ''}" type="button" data-action="set-leave-order" data-v="low">先扣低倍率</button>
+        <button class="qbtn ${mon.leaveOrder === 'high' ? 'on' : ''}" type="button" data-action="set-leave-order" data-v="high">先扣高倍率</button>
+      </div>
+      <p class="help">调休会按顺序抵掉当月加班，抵掉的部分不再算加班费。先扣低倍率时，3 倍加班留到最后，对员工更划算；有些公司反着扣，可以在这里选。</p>
+    </div>
+  </section>` : ''}
 
   <section class="card set-card">
     <div class="sc-head"><span class="ico">${ICON.receipt}</span><div><h2>${kind === 'temp' ? '保险 / 扣款' : '月度扣款与补贴'}</h2><div class="sub">维护月份：${month.getFullYear()} 年 ${month.getMonth() + 1} 月（跟日历）</div></div></div>

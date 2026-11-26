@@ -8,7 +8,7 @@ let editorKind = 'regular';
 
 function blankDraft(kind, k) {
   if (kind === 'regular') {
-    return { shift: '白班', otHours: '', regularHours: '', note: '' };
+    return { shift: '白班', otHours: '', regularHours: '', otSplit: [0, 0, 0], showSplit: false, note: '' };
   }
   if (kind === 'temp') {
     const s = state.data.temp.settings;
@@ -29,10 +29,13 @@ function blankDraft(kind, k) {
 function draftFromRecord(kind, rec) {
   if (!rec) return null;
   if (kind === 'regular') {
+    const split = Array.isArray(rec.otSplit) ? rec.otSplit.slice(0, 3) : null;
     return {
       shift: rec.shift,
       otHours: rec.otHours ? String(rec.otHours) : '',
       regularHours: (rec.regularHours === null || rec.regularHours === undefined) ? '' : String(rec.regularHours),
+      otSplit: split ? split.map(x => num(x, 0, 0, 24)) : [0, 0, 0],
+      showSplit: !!split,
       note: rec.note || ''
     };
   }
@@ -62,6 +65,9 @@ function draftFromRecord(kind, rec) {
 function openEditor(k, opt) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) return;
   opt = opt || {};
+  // 先把键盘收起来并移回 body：下面要整体重写 editor 的 innerHTML，
+  // 键盘如果正挂在 dialog 里会被一起删掉，之后再也弹不出来。
+  if (window.GongKeypad) window.GongKeypad.close();
   editingKey = k;
   editorKind = state.active;
   const rec = state.data[editorKind].records[k] || null;
@@ -126,6 +132,7 @@ function editorBodyHTML(rec) {
              <div class="input-unit"><input type="text" readonly inputmode="none" data-num="dec" data-field="otHours" value="${esc(draft.otHours)}" placeholder="0" aria-label="加班小时"><span>小时</span></div>
            </label>
            <div class="quick-row">${[0, 1, 2, 3, 4, 6].map(v => `<button class="qbtn" type="button" data-action="quick-ot" data-v="${v}">${v ? v + 'h' : '无加班'}</button>`).join('')}</div>
+           ${otSplitEditor()}
            <label class="field">正班实际工时（不满 ${full} 小时扣底薪）
              <div class="input-unit"><input type="text" readonly inputmode="none" data-num="dec" data-field="regularHours" value="${esc(draft.regularHours)}" placeholder="${full}" aria-label="正班工时"><span>小时</span></div>
            </label>
@@ -232,17 +239,100 @@ function numLike(label, field, val, unit, hintVal) {
   </label>`;
 }
 
+/* ---------- 加班倍率拆分（公司不按法定倍率时用） ---------- */
+const SPLIT_FIELDS = ['otwd', 'otwe', 'othd'];
+
+function otSplitSum() {
+  return round2(sum((editorDraft.otSplit || []).map(x => num(x, 0, 0, 24))));
+}
+
+function otSplitTotalText() {
+  const total = num(editorDraft.otHours, 0, 0, 24);
+  const got = otSplitSum();
+  const diff = round2(total - got);
+  const ok = Math.abs(diff) < 0.005;
+  return `合计 ${got} / 总加班 ${total} 小时 <b class="${ok ? 'pos' : 'neg'}">${ok ? '✓ 对上了' : '还差 ' + diff + ' 小时'}</b>`;
+}
+
+function otSplitEditor() {
+  const s = state.data.regular.settings;
+  const d = editorDraft;
+  const rows = OT_KEYS.map((key, i) => {
+    const v = num((d.otSplit || [])[i], 0, 0, 24);
+    return `<div class="ot-row">
+      <span class="ot-name">${OT_LABEL[key]}<em>×${num(s[OT_MULKEY[key]], 1, 0, 10)}</em></span>
+      <div class="input-unit"><input type="text" readonly inputmode="none" data-num="dec" data-field="${SPLIT_FIELDS[i]}" value="${v ? String(v) : ''}" placeholder="0" aria-label="${OT_LABEL[key]}加班小时"><span>小时</span></div>
+    </div>`;
+  }).join('');
+  return `<div class="ot-split">
+    <button class="textbtn" type="button" data-action="toggle-otsplit">${d.showSplit ? '收起「倍率拆分」' : '公司不按法定倍率算？改这里'}</button>
+    ${d.showSplit ? `<div class="ot-split-body">
+      <p class="help">加班可以拆成几段不同倍率（比如 3 小时按 3 倍、2 小时按 2 倍）。改一段，其余自动补，总小时不变。</p>
+      ${rows}
+      <div class="ot-total" id="otTotal">${otSplitTotalText()}</div>
+    </div>` : ''}
+  </div>`;
+}
+
+/** 自动调平：改一档，差额从其它档补/扣，总和保持等于总加班 */
+function rebalanceSplit(changedIdx, val) {
+  const total = num(editorDraft.otHours, 0, 0, 24);
+  const arr = (editorDraft.otSplit || [0, 0, 0]).map((x, i) => i === changedIdx ? val : num(x, 0, 0, 24));
+  let diff = round2(sum(arr) - total);
+  if (diff > 0) {
+    for (const j of [0, 1, 2]) {
+      if (j === changedIdx) continue;
+      const take = Math.min(arr[j], diff);
+      arr[j] = round2(arr[j] - take);
+      diff = round2(diff - take);
+      if (diff <= 0) break;
+    }
+  } else if (diff < 0) {
+    const j = [1, 2, 0].find(x => x !== changedIdx);
+    arr[j] = round2(arr[j] + (-diff));
+  }
+  editorDraft.otSplit = arr;
+}
+
+function syncSplitInputs() {
+  SPLIT_FIELDS.forEach((f, i) => {
+    const inp = document.querySelector(`#editorBody input[data-field="${f}"]`);
+    if (inp) {
+      const v = num((editorDraft.otSplit || [])[i], 0, 0, 24);
+      inp.value = v ? String(v) : '';
+    }
+  });
+  const t = $('otTotal');
+  if (t) t.innerHTML = otSplitTotalText();
+}
+
 /* ---------- 计算提示 ---------- */
 function regularCalcText() {
   const s = state.data.regular.settings;
   const hr = hourlyRateFor('regular', currentCycle());
-  const mul = multiplierFor(editingKey);
   const ot = Number(editorDraft.otHours) || 0;
   const rh = editorDraft.regularHours === '' ? s.hoursPerDay : Number(editorDraft.regularHours);
   const short = Math.max(0, s.hoursPerDay - rh);
-  const t = dateType(editingKey);
-  const label = t === 'holiday' ? '节假日' : t === 'weekend' ? '周末' : '平时';
-  let txt = `${label}：${money(hr)} × ${mul} 倍 × ${ot} 小时 = ${money(ot * hr * mul)}`;
+  let txt = '';
+  if (editorDraft.showSplit) {
+    const parts = OT_KEYS.map((key, i) => ({ key, h: num((editorDraft.otSplit || [])[i], 0, 0, 24) })).filter(p => p.h > 0);
+    const pay = sum(parts.map(p => p.h * num(s[OT_MULKEY[p.key]], 1, 0, 10))) * hr;
+    if (parts.length) {
+      txt = parts.map(p => `${OT_LABEL[p.key]} ${p.h}h ×${num(s[OT_MULKEY[p.key]], 1, 0, 10)}`).join(' + ') + ` = ${money(pay)}`;
+    } else {
+      txt = '还没拆，填一下各档小时';
+    }
+    const legalKey = legalOtKey(editingKey);
+    const legal = ot * num(s[OT_MULKEY[legalKey]], 1, 0, 10) * hr;
+    if (Math.abs(legal - pay) > 0.005) {
+      txt += `；按法定（${OT_LABEL[legalKey]} ×${num(s[OT_MULKEY[legalKey]], 1, 0, 10)}）应 ${money(legal)}，少 ${money(legal - pay)}`;
+    }
+  } else {
+    const mul = multiplierFor(editingKey);
+    const t = dateType(editingKey);
+    const label = t === 'holiday' ? '节假日' : t === 'weekend' ? '周末' : '平时';
+    txt = `${label}：${money(hr)} × ${mul} 倍 × ${ot} 小时 = ${money(ot * hr * mul)}`;
+  }
   if (short > 0) txt += `；正班少 ${short} 小时，扣 ${money(short * hr)}`;
   return txt;
 }
@@ -309,6 +399,14 @@ function onEditorInput(e) {
     syncCalcHint();
     return;
   }
+  if (SPLIT_FIELDS.includes(f)) {
+    const idx = SPLIT_FIELDS.indexOf(f);
+    const v = t.value === '' ? 0 : num(t.value, 0, 0, 24);
+    rebalanceSplit(idx, v);
+    syncSplitInputs();
+    syncCalcHint();
+    return;
+  }
   editorDraft[f] = t.value;
   syncCalcHint();
 }
@@ -349,6 +447,10 @@ function readEditorValues() {
     } else if (f.indexOf('prate') === 0) {
       const i = Number(f.replace('prate', ''));
       if (editorDraft.items[i]) editorDraft.items[i].rate = inp.value;
+    } else if (SPLIT_FIELDS.includes(f)) {
+      const idx = SPLIT_FIELDS.indexOf(f);
+      if (!Array.isArray(editorDraft.otSplit)) editorDraft.otSplit = [0, 0, 0];
+      editorDraft.otSplit[idx] = inp.value === '' ? 0 : num(inp.value, 0, 0, 24);
     } else {
       editorDraft[f] = inp.value;
     }
@@ -379,7 +481,16 @@ function saveEntry() {
     const rh = editorDraft.regularHours === '' ? null : Number(editorDraft.regularHours);
     if (ot < 0 || ot > 24) return fail('加班小时要在 0–24 之间');
     if (rh !== null && (rh < 0 || rh > 24)) return fail('正班工时要在 0–24 之间');
-    rec = { shift, otHours: isLeave ? 0 : ot, regularHours: isLeave ? null : (rh === null || rh >= state.data.regular.settings.hoursPerDay ? null : rh), note };
+    let otSplit = null;
+    if (!isLeave && editorDraft.showSplit) {
+      const arr = (editorDraft.otSplit || [0, 0, 0]).map(x => round2(num(x, 0, 0, 24)));
+      const ssum = round2(sum(arr));
+      if (ssum > 0) {
+        if (Math.abs(ssum - ot) > 0.005) return fail(`拆分合计 ${ssum} 小时，和加班总数 ${ot} 小时对不上`);
+        otSplit = arr;
+      }
+    }
+    rec = { shift, otHours: isLeave ? 0 : ot, otSplit: isLeave ? null : otSplit, regularHours: isLeave ? null : (rh === null || rh >= state.data.regular.settings.hoursPerDay ? null : rh), note };
   } else if (kind === 'temp') {
     const hours = Number(editorDraft.hours) || 0;
     const rate = editorDraft.rate === '' ? state.data.temp.settings.rate : Number(editorDraft.rate) || 0;
@@ -427,6 +538,7 @@ function saveEntry() {
 
   state.data[kind].records[k] = rec;
   persist(true);
+  if (window.GongKeypad) window.GongKeypad.close();
   $('editor').close();
   editingKey = null;
   // 如果补记的日期不在当前查看的周期，自动跳到那个周期，避免"存了却看不到"

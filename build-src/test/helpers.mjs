@@ -1,7 +1,7 @@
 import { JSDOM, VirtualConsole } from 'jsdom';
 import fs from 'fs';
 
-const HTML_PATH = '/sdcard/0.21版本工作区/全局管理/项目管理/应用开发/工时记.html';
+const HTML_PATH = '/sdcard/0.21版本工作区/全局管理/项目管理/应用开发/工时记/工时记-单文件.html';
 
 export const results = [];
 let current = '';

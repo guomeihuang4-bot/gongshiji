@@ -1,0 +1,133 @@
+/* =====================================================================
+   键盘模块样式（从主样式表抽出，随 keypad.js 注入）
+   依赖主程序的 :root 变量（--blue / --safe-b 等），两侧必须同一页面
+   ===================================================================== */
+
+/* ---------- 数字键盘底座 ---------- */
+/* 数字键盘 */
+.keypad{
+  position:fixed;left:0;right:0;bottom:0;z-index:120;max-width:760px;margin:0 auto;
+  background:#eef1f6;border-radius:18px 18px 0 0;box-shadow:0 -10px 34px rgba(20,40,70,.16);
+  padding:8px 8px calc(8px + var(--safe-b));transform:translateY(110%);transition:transform .2s cubic-bezier(.22,.61,.36,1);
+  display:flex;flex-direction:column;gap:6px;
+}
+.keypad.on{transform:translateY(0)}
+.kp-top{display:flex;align-items:center;gap:8px;padding:2px 6px 4px}
+.kp-top .kp-label{font-size:11.5px;color:#6f7e94;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kp-top .kp-val{font-size:17px;font-weight:700;color:var(--blue);font-variant-numeric:tabular-nums;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kp-top .kp-unit{font-size:10.5px;color:#93a0b3}
+.kp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.key{
+  height:50px;border-radius:11px;background:#fff;display:flex;align-items:center;justify-content:center;
+  font-size:21px;font-weight:600;color:#2c3f5c;box-shadow:0 1px 2px rgba(30,50,80,.1);
+  user-select:none;-webkit-user-select:none;transition:background .1s,transform .08s;
+}
+.key:active{background:#e6edf9;transform:scale(.97)}
+.key.fn{font-size:14px;color:#5f7189;background:#f7f9fc}
+.key.done{grid-row:span 2;height:auto;background:linear-gradient(135deg,#3b7bfa,#1d55cf);color:#fff;font-size:17px;font-weight:650;box-shadow:0 5px 14px rgba(37,103,232,.3)}
+.key.done:active{filter:brightness(.95);transform:scale(.985)}
+.key.zero{grid-column:span 1}
+.key.del{font-size:18px}
+body.kp-open{padding-bottom:0}
+body.kp-open .nav{transform:translateY(120%);transition:transform .2s}
+
+/* ---------- 多模式键盘骨架 ---------- */
+/* ================= 多模式键盘 ================= */
+.keypad{gap:5px}
+.kp-head{display:flex;align-items:center;gap:6px;padding:1px 2px 3px}
+.kp-modes{display:flex;gap:4px;flex:1;min-width:0}
+.kp-modes button{height:28px;padding:0 10px;border-radius:8px;font-size:11.5px;font-weight:600;color:#6f7e94;background:#fff;border:1px solid #e2e9f3;flex-shrink:0}
+.kp-modes button.on{background:var(--blue);color:#fff;border-color:var(--blue);box-shadow:0 3px 8px rgba(37,103,232,.22)}
+.kp-modes button:disabled{opacity:.32}
+.kp-sys{height:28px;padding:0 9px;border-radius:8px;font-size:11px;color:#5f7189;background:#f7f9fc;border:1px solid #e7eef7;flex-shrink:0;white-space:nowrap}
+.kp-hide{width:30px;height:28px;border-radius:8px;font-size:17px;line-height:1;color:#5f7189;background:#f7f9fc;border:1px solid #e7eef7;display:grid;place-items:center;flex-shrink:0}
+.kp-cands{display:flex;gap:6px;overflow-x:auto;padding:2px;min-height:40px;align-items:center;scrollbar-width:none;background:rgba(255,255,255,.55);border-radius:9px}
+.kp-cands::-webkit-scrollbar{display:none}
+.cand{flex-shrink:0;min-width:36px;height:34px;padding:0 8px;border-radius:8px;background:#fff;border:1px solid #e4ebf5;font-size:15.5px;color:#2c3f5c;box-shadow:0 1px 2px rgba(30,50,80,.06)}
+.cand:active{background:#e6edf9;transform:scale(.97)}
+.cand-empty{font-size:11px;color:#a8b4c4;padding-left:8px}
+.kp-alpha{display:flex;flex-direction:column;gap:6px;padding-top:2px}
+.alpha-row{display:flex;gap:5px;justify-content:center}
+.akey{flex:1;max-width:42px;height:42px;border-radius:8px;background:#fff;font-size:16px;font-weight:550;color:#2c3f5c;box-shadow:0 1px 2px rgba(30,50,80,.08)}
+.akey-fn{max-width:60px;font-size:12px;font-weight:500;color:#5f7189;background:#f7f9fc}
+.akey:active{background:#e6edf9;transform:scale(.96)}
+.kp-t9{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding-top:2px}
+.tkey{height:45px;border-radius:9px;background:#fff;display:flex;align-items:center;justify-content:center;gap:4px;box-shadow:0 1px 2px rgba(30,50,80,.08)}
+.tkey b{font-size:17px;color:#2c3f5c}
+.tkey small{font-size:9px;color:#a8b4c4;letter-spacing:.2px}
+.tkey.fn{font-size:12px;color:#5f7189;background:#f7f9fc}
+.tkey:active{background:#e6edf9;transform:scale(.97)}
+body.kp-open dialog.sheet .sheet-inner{padding-bottom:var(--kp-pad,336px)}
+
+/* ---------- 候选栏 / 分页 / 底栏 / 气泡 ---------- */
+/* ================= 键盘：候选栏 / 分页 / 底栏 / 气泡 ================= */
+.kp-info{display:flex;align-items:center;gap:7px;padding:1px 5px 2px;min-height:22px}
+.kp-info .kp-label{font-size:11px;color:#6f7e94;flex-shrink:0;max-width:34%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kp-info .kp-py{flex:1;min-width:0;font-size:13px;font-weight:600;color:#2a6bee;letter-spacing:.4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kp-info .kp-val{font-size:15px;font-weight:700;color:#2c3f5c;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+.kp-info .kp-unit{font-size:10.5px;color:#93a0b3;flex-shrink:0}
+.kp-cbar{display:flex;align-items:center;gap:4px}
+.kp-page{
+  width:26px;height:34px;flex-shrink:0;border-radius:8px;background:#fff;border:1px solid #e4ebf5;
+  color:#4a5d78;font-size:17px;line-height:1;display:grid;place-items:center;
+}
+.kp-page:disabled{opacity:.3}
+.kp-page:active{background:#e6edf9}
+.kp-cands{flex:1;min-width:0}
+.cand.first{background:#e8f0ff;border-color:#b9d3ff;color:#1d55cf;font-weight:650}
+.kp-foot{display:flex;gap:5px;padding-top:1px}
+.fkey{flex:1;height:38px;border-radius:9px;background:#fff;color:#2c3f5c;font-size:13px;font-weight:600;box-shadow:0 1px 2px rgba(30,50,80,.08)}
+.fkey.wide{flex:2.2}
+.fkey.go{background:linear-gradient(135deg,#3b7bfa,#1d55cf);color:#fff;box-shadow:0 4px 12px rgba(37,103,232,.28)}
+.fkey:active{filter:brightness(.96);transform:scale(.99)}
+.akey-shift{max-width:48px}
+.akey-shift.on{background:#dbe7ff;color:#1d55cf}
+.alpha-row-2{padding:0 10px}
+#keypad[data-kp-mode="num"] .kp-foot{display:none}
+#keypad[data-kp-mode="num"] .kp-cbar{display:none}
+.kp-bubble{
+  position:fixed;z-index:130;transform:translate(-50%,-100%) scale(.9);transform-origin:50% 100%;
+  min-width:34px;padding:4px 9px;border-radius:10px;background:#fff;color:#1d3a63;font-size:19px;font-weight:600;
+  box-shadow:0 8px 22px rgba(20,40,70,.22);border:1px solid #e2eaf6;
+  opacity:0;pointer-events:none;transition:opacity .09s,transform .09s;
+}
+.kp-bubble.on{opacity:1;transform:translate(-50%,-100%) scale(1)}
+/* ---------- 壁纸模式下的键盘底色 ---------- */
+body.bg-custom .keypad{background:rgba(238,241,246,.97)}
+
+/* ---------- 手写面板 ---------- */
+/* ================= 手写输入（内置手写键盘，完全离线） ================= */
+.kp-hw{display:flex;flex-direction:column;gap:6px;padding-top:2px}
+.kp-hw-board{
+  position:relative;width:100%;height:clamp(170px,28vh,260px);
+  background:#fff;border:1px solid #e4ebf5;border-radius:12px;overflow:hidden;
+  box-shadow:0 1px 2px rgba(30,50,80,.06);touch-action:none;
+}
+.kp-hw-board::before{ /* 米字格淡辅助线 */
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    linear-gradient(#eef3fa,#eef3fa) center/1px 100% no-repeat,
+    linear-gradient(#eef3fa,#eef3fa) center/100% 1px no-repeat;
+  opacity:.55;
+}
+#kpHwCanvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.kp-hw-hint{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  font-size:13px;color:#c3cddb;pointer-events:none;letter-spacing:1px;
+  transition:opacity .15s;
+}
+.kp-hw-hint.off{opacity:0}
+.kp-hw-tools{display:flex;gap:5px}
+.hwkey{flex:1;height:38px;border-radius:9px;background:#fff;color:#2c3f5c;font-size:13px;font-weight:600;box-shadow:0 1px 2px rgba(30,50,80,.08)}
+.hwkey:active{background:#e6edf9;transform:scale(.98)}
+.hwkey.go{background:linear-gradient(135deg,#3b7bfa,#1d55cf);color:#fff;box-shadow:0 4px 12px rgba(37,103,232,.28)}
+.hwkey.go:active{filter:brightness(.96)}
+#keypad[data-kp-mode="hw"] .kp-grid,
+#keypad[data-kp-mode="hw"] .kp-alpha,
+#keypad[data-kp-mode="hw"] .kp-t9,
+#keypad[data-kp-mode="hw"] .kp-foot{display:none!important}
+body.bg-custom .kp-hw-board{background:rgba(255,255,255,.94)}
+
+/* ---------- 键盘打开时弹窗让位 ---------- */
+body.kp-open dialog.sheet .sheet-foot{padding-bottom:10px}
+body.kp-open dialog.sheet .sheet-body{padding-bottom:8px}

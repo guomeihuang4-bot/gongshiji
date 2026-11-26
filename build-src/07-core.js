@@ -1,6 +1,6 @@
 'use strict';
 /* =====================================================================
-   工时记 v4.1f · 完全离线 · 单文件
+   工时记 v1.0 · 完全离线 · 主程序（键盘模块见同目录 keypad.js）
    （源码分区：核心 / 节假日 / 算法 / 渲染 / 编辑器 / 键盘 / 设置 / 事件）
    ===================================================================== */
 
@@ -34,7 +34,7 @@ const WEEK_CN = ['日', '一', '二', '三', '四', '五', '六'];
 const MONTH_KEY = d => d.getFullYear() + '-' + pad(d.getMonth() + 1);
 
 /* ==================== 常量 ==================== */
-const APP_VERSION = '4.1f';
+const APP_VERSION = '1.0';
 const STORE_V3 = 'gongshi_v3';
 const STORE_V2 = 'gongshi_v2';
 const STORE_THEME = 'gongshi_bg';
@@ -91,22 +91,30 @@ function defaultWorkerSettings(kind) {
     });
   }
   if (kind === 'temp') {
-    return Object.assign(common, { rate: 0, defaultHours: 8, defaultShift: '白班' });
+    return Object.assign(common, { rate: 0, rateOut: 0, defaultHours: 8, defaultShift: '白班' });
   }
   if (kind === 'piece') {
     return Object.assign(common, { items: [{ name: '', rate: 0 }], unit: '件' });
   }
-  return Object.assign(common, { dayRate: 0, hourRate: 0, otRate: 0, packageRate: 0, hoursPerDay: 8 });
+  return Object.assign(common, {
+    dayRate: 0, hourRate: 0, otRate: 0, packageRate: 0,
+    dayRateOut: 0, hourRateOut: 0, otRateOut: 0,
+    hoursPerDay: 8
+  });
 }
 
 function defaultMonthlySeed(kind) {
+  const leave = { leaveHours: 0, leaveOrder: 'low' };
   if (kind === 'regular') {
-    return { deductions: [{ name: '社保', amount: 0 }, { name: '公积金', amount: 0 }, { name: '个人所得税', amount: 0 }], allowances: [] };
+    return Object.assign(leave, {
+      deductions: [{ name: '社保', amount: 0 }, { name: '公积金', amount: 0 }, { name: '个人所得税', amount: 0 }],
+      allowances: []
+    });
   }
   if (kind === 'temp') {
-    return { deductions: [{ name: '保险', amount: 0 }], allowances: [] };
+    return Object.assign(leave, { deductions: [{ name: '保险', amount: 0 }], allowances: [] });
   }
-  return { deductions: [], allowances: [] };
+  return Object.assign(leave, { deductions: [], allowances: [] });
 }
 
 function defaultState() {
@@ -202,9 +210,19 @@ function cleanRecord(kind, v) {
   const note = String(v.note == null ? '' : v.note).slice(0, 200);
   if (kind === 'regular') {
     const shift = ALL_SHIFTS.includes(v.shift) ? v.shift : '白班';
+    let otSplit = null;
+    if (Array.isArray(v.otSplit)) {
+      const arr = v.otSplit.slice(0, 3).map(x => num(x, 0, 0, 24));
+      while (arr.length < 3) arr.push(0);
+      if (arr.some(x => x > 0)) otSplit = arr;
+    }
+    let otHours = num(v.otHours, 0, 0, 24);
+    // 有拆分时以拆分为准，避免总小时与分档对不上
+    if (otSplit) otHours = round2(otSplit[0] + otSplit[1] + otSplit[2]);
     return {
       shift,
-      otHours: num(v.otHours, 0, 0, 24),
+      otHours,
+      otSplit,
       regularHours: (v.regularHours === null || v.regularHours === undefined) ? null : num(v.regularHours, 8, 0, 24),
       note
     };
@@ -273,6 +291,7 @@ function cleanSettings(kind, s) {
   if (kind === 'temp') {
     return Object.assign(common, {
       rate: num(s.rate, 0, 0, 1e6),
+      rateOut: num(s.rateOut, 0, 0, 1e6),
       defaultHours: num(s.defaultHours, 8, 0, 24),
       defaultShift: WORK_SHIFTS.includes(s.defaultShift) ? s.defaultShift : '白班'
     });
@@ -290,6 +309,9 @@ function cleanSettings(kind, s) {
     hourRate: num(s.hourRate, 0, 0, 1e6),
     otRate: num(s.otRate, 0, 0, 1e6),
     packageRate: num(s.packageRate, 0, 0, 1e6),
+    dayRateOut: num(s.dayRateOut, 0, 0, 1e6),
+    hourRateOut: num(s.hourRateOut, 0, 0, 1e6),
+    otRateOut: num(s.otRateOut, 0, 0, 1e6),
     hoursPerDay: num(s.hoursPerDay, 8, 0.5, 24)
   });
 }
@@ -312,7 +334,9 @@ function cleanData(raw) {
         if (!/^\d{4}-\d{2}$/.test(k) || !v || typeof v !== 'object') continue;
         out.data[kind].monthly[k] = {
           deductions: cleanItems(v.deductions),
-          allowances: cleanItems(v.allowances)
+          allowances: cleanItems(v.allowances),
+          leaveHours: num(v.leaveHours, 0, 0, 744),
+          leaveOrder: v.leaveOrder === 'high' ? 'high' : 'low'
         };
       }
     }
@@ -358,7 +382,12 @@ function migrateFromV2(old) {
   if (old.monthly && typeof old.monthly === 'object') {
     for (const [k, v] of Object.entries(old.monthly)) {
       if (!/^\d{4}-\d{2}$/.test(k) || !v) continue;
-      const clean = { deductions: cleanItems(v.deductions), allowances: cleanItems(v.allowances) };
+      const clean = {
+        deductions: cleanItems(v.deductions),
+        allowances: cleanItems(v.allowances),
+        leaveHours: num(v.leaveHours, 0, 0, 744),
+        leaveOrder: v.leaveOrder === 'high' ? 'high' : 'low'
+      };
       out.data.regular.monthly[k] = JSON.parse(JSON.stringify(clean));
       out.data.temp.monthly[k] = JSON.parse(JSON.stringify(clean));
     }

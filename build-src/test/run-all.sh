@@ -14,7 +14,7 @@ fi
 
 fail=0
 pass=0
-for f in t1 t2 t3 t4 t5 t6 t7 t8 t9; do
+for f in t1 t2 t3 t4 t5 t6 t7 t8 t9 t10 t11 t12; do
   echo ""
   echo "════════════ $f ════════════"
   if node "$f.mjs"; then

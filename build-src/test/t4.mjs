@@ -55,7 +55,7 @@ const ad = doc.getElementById('aboutDialog');
 ok('关于弹窗打开', ad.hasAttribute('open'));
 ok('说明含 2025 到 2030', ad.textContent.includes('2025 年到 2030 年'));
 ok('含作者', ad.textContent.includes('作者：deep seek'));
-ok('源码块存在', ad.textContent.includes('源码（HTML代码）'));
+ok('源码块存在', ad.textContent.includes('源码（HTML 代码）'));
 ok('只留一个复制按钮', !ad.querySelector('[data-action="copy-js"]') && !!ad.querySelector('[data-action="copy-html"]'));
 click(doc, '#aboutDialog [data-action="copy-html"]');
 await new Promise(r => setTimeout(r, 30));
